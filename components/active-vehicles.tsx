@@ -1,7 +1,14 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { getActiveVehicles, updateVehicle, hasServices, getServicesByVehicle, type Vehicle } from "@/lib/data-store"
+import {
+  getActiveVehicles,
+  updateVehicle,
+  hasServices,
+  getServicesByVehicle,
+  updateService,
+  type Vehicle,
+} from "@/lib/data-store"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -94,6 +101,16 @@ export default function ActiveVehicles({ branch, isAdmin, onBranchChange }: Acti
 
     setIsLoading(true)
     try {
+      const services = getServicesByVehicle(vehicleForExit.id)
+      const completedServices = services.filter((s) => s.status === "completed")
+      const price = Number.parseFloat(totalPrice)
+
+      const pricePerService = completedServices.length > 0 ? price / completedServices.length : 0
+
+      completedServices.forEach((service) => {
+        updateService(service.id, { price: pricePerService })
+      })
+
       updateVehicle(vehicleForExit.id, {
         status: "completed",
         exitTime: new Date().toISOString(),

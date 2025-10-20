@@ -42,7 +42,13 @@ export default function AdminDashboard() {
       const totalIncome = allServices
         .filter((s) => {
           const vehicle = allVehicles.find((v) => v.id === s.vehicleId)
-          return vehicle && vehicle.status === "completed" && new Date(vehicle.exitTime || "").toDateString() === today
+          return (
+            vehicle &&
+            vehicle.status === "completed" &&
+            new Date(vehicle.exitTime || "").toDateString() === today &&
+            s.status === "completed" &&
+            s.price !== null
+          )
         })
         .reduce((sum, s) => sum + (s.price || 0), 0)
 
@@ -87,15 +93,14 @@ export default function AdminDashboard() {
         </p>
       </div>
 
-      {/* Stats Grid - Full width cards on mobile */}
-      <div className="grid grid-cols-1 gap-3 md:gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
         {/* Autos Activos */}
         <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
           <CardHeader className="pb-2">
             <CardTitle className="text-xs md:text-sm font-medium text-blue-900">Autos Activos</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl md:text-4xl font-bold text-blue-600">{stats.activeVehicles}</div>
+            <div className="text-2xl md:text-3xl font-bold text-blue-600">{stats.activeVehicles}</div>
             <p className="text-xs text-blue-700 mt-1">En el taller ahora</p>
           </CardContent>
         </Card>
@@ -106,7 +111,7 @@ export default function AdminDashboard() {
             <CardTitle className="text-xs md:text-sm font-medium text-green-900">Completados Hoy</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl md:text-4xl font-bold text-green-600">{stats.completedToday}</div>
+            <div className="text-2xl md:text-3xl font-bold text-green-600">{stats.completedToday}</div>
             <p className="text-xs text-green-700 mt-1">Servicios finalizados</p>
           </CardContent>
         </Card>
@@ -117,7 +122,7 @@ export default function AdminDashboard() {
             <CardTitle className="text-xs md:text-sm font-medium text-purple-900">Ingresos Hoy</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl md:text-4xl font-bold text-purple-600">S/ {stats.totalIncome.toFixed(2)}</div>
+            <div className="text-2xl md:text-3xl font-bold text-purple-600">S/ {stats.totalIncome.toFixed(2)}</div>
             <p className="text-xs text-purple-700 mt-1">Total del día</p>
           </CardContent>
         </Card>
@@ -128,7 +133,7 @@ export default function AdminDashboard() {
             <CardTitle className="text-xs md:text-sm font-medium text-orange-900">Pendientes Salida</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl md:text-4xl font-bold text-orange-600">{stats.pendingCompletion}</div>
+            <div className="text-2xl md:text-3xl font-bold text-orange-600">{stats.pendingCompletion}</div>
             <p className="text-xs text-orange-700 mt-1">Listos para salir</p>
           </CardContent>
         </Card>
@@ -139,7 +144,7 @@ export default function AdminDashboard() {
             <CardTitle className="text-xs md:text-sm font-medium text-slate-900">Tiempo Promedio</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl md:text-4xl font-bold text-slate-600">{stats.averageServiceTime}m</div>
+            <div className="text-2xl md:text-3xl font-bold text-slate-600">{stats.averageServiceTime}m</div>
             <p className="text-xs text-slate-700 mt-1">Por servicio</p>
           </CardContent>
         </Card>

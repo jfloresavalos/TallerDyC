@@ -30,7 +30,7 @@ export default function Dashboard() {
 
       {/* Main Content */}
       <main className="flex-1 overflow-y-auto pt-0 md:pt-0">
-        <div className="w-full">
+        <div className="w-full pt-16 md:pt-0">
           {isAdmin && activeTab === "dashboard" && (
             <div className="p-4 md:p-6">
               <AdminDashboard key={`dashboard-${refreshKey}`} branch={selectedBranch} />

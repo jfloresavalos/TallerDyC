@@ -47,10 +47,10 @@ export default function ServiceAssignment({
   const [localBranch, setLocalBranch] = useState<"sede1" | "sede2" | "both">(isAdmin ? "both" : branch)
 
   const mechanics = [
-    { id: "juan", name: "Juan García" },
-    { id: "carlos", name: "Carlos López" },
-    { id: "pedro", name: "Pedro Martínez" },
-    { id: "luis", name: "Luis Rodríguez" },
+    { id: "juan", name: "Juan García", branch: "sede1" },
+    { id: "carlos", name: "Carlos López", branch: "sede2" },
+    { id: "pedro", name: "Pedro Martínez", branch: "sede1" },
+    { id: "luis", name: "Luis Rodríguez", branch: "sede2" },
   ]
 
   useEffect(() => {
@@ -278,11 +278,13 @@ export default function ServiceAssignment({
                         required
                       >
                         <option value="">-- Selecciona un mecánico --</option>
-                        {mechanics.map((mech) => (
-                          <option key={mech.id} value={mech.id}>
-                            {mech.name}
-                          </option>
-                        ))}
+                        {mechanics
+                          .filter((mech) => mech.branch === selectedVehicle?.branch)
+                          .map((mech) => (
+                            <option key={mech.id} value={mech.id}>
+                              {mech.name}
+                            </option>
+                          ))}
                       </select>
                     </div>
                   )}

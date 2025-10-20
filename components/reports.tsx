@@ -53,8 +53,8 @@ export default function Reports({ branch, isAdmin, mechanicId, onBranchChange }:
 
   const filteredCompletedVehicles = dateFilter
     ? completedVehicles.filter((v) => {
-        const vehicleDate = new Date(v.exitTime || "").toLocaleDateString("es-PE")
-        return vehicleDate === new Date(dateFilter).toLocaleDateString("es-PE")
+        const vehicleDate = new Date(v.exitTime || "").toISOString().split("T")[0]
+        return vehicleDate === dateFilter
       })
     : completedVehicles
 
