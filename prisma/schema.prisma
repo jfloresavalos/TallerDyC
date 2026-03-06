@@ -1,0 +1,138 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ---- ENUMS ----
+enum UserRole {
+  ADMIN
+  MECHANIC
+  RECEPTIONIST
+}
+
+enum VehicleStatus {
+  ACTIVE
+  COMPLETED
+}
+
+enum ServiceStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  PENDING_CORRECTION
+}
+
+// ---- MODELOS CORE ----
+model User {
+  id        String   @id @default(cuid())
+  username  String   @unique
+  name      String
+  password  String
+  role      UserRole @default(MECHANIC)
+  branch    Branch?  @relation(fields: [branchId], references: [id])
+  branchId  String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  services  Service[]
+
+  @@index([username])
+  @@index([role])
+}
+
+model Branch {
+  id        String    @id @default(cuid())
+  name      String
+  code      String    @unique
+  address   String?
+  phone     String?
+  active    Boolean   @default(true)
+  users     User[]
+  vehicles  Vehicle[]
+  createdAt DateTime  @default(now())
+}
+
+model Vehicle {
+  id           String        @id @default(cuid())
+  plate        String
+  brand        String
+  model        String
+  year         Int
+  clientName   String
+  clientPhone  String
+  clientDNI    String
+  entryTime    DateTime      @default(now())
+  exitTime     DateTime?
+  branch       Branch        @relation(fields: [branchId], references: [id])
+  branchId     String
+  status       VehicleStatus @default(ACTIVE)
+  arrivalOrder Int
+  services     Service[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@index([plate])
+  @@index([clientDNI])
+  @@index([branchId, status])
+}
+
+model Service {
+  id                  String        @id @default(cuid())
+  vehicle             Vehicle       @relation(fields: [vehicleId], references: [id])
+  vehicleId           String
+  serviceType         String
+  description         String        @default("")
+  mechanic            User          @relation(fields: [mechanicId], references: [id])
+  mechanicId          String
+  startTime           DateTime      @default(now())
+  completionTime      DateTime?
+  status              ServiceStatus @default(IN_PROGRESS)
+  correctionRequested Boolean       @default(false)
+  correctionReason    String?
+  price               Float?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  @@index([vehicleId])
+  @@index([mechanicId])
+  @@index([status])
+}
+
+model Company {
+  id        String   @id @default(cuid())
+  name      String
+  ruc       String?
+  address   String?
+  phone     String?
+  email     String?
+  logo      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ---- MARCAS Y MODELOS ----
+model CarBrand {
+  id        String     @id @default(cuid())
+  name      String     @unique
+  active    Boolean    @default(true)
+  models    CarModel[]
+  createdAt DateTime   @default(now())
+
+  @@index([name])
+}
+
+model CarModel {
+  id        String   @id @default(cuid())
+  name      String
+  brandId   String
+  active    Boolean  @default(true)
+  brand     CarBrand @relation(fields: [brandId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@unique([name, brandId])
+  @@index([brandId])
+}
