@@ -26,7 +26,6 @@ const statusLabels: Record<string, { label: string; class: string }> = {
   COMPLETED: { label: "Completado", class: "bg-green-100 text-green-800" },
   PENDING: { label: "Pendiente", class: "bg-yellow-100 text-yellow-800" },
   IN_PROGRESS: { label: "En Progreso", class: "bg-blue-100 text-blue-800" },
-  PENDING_CORRECTION: { label: "Corrección", class: "bg-orange-100 text-orange-800" },
 }
 
 export function ClientDetailClient({ client }: ClientDetailClientProps) {
@@ -52,9 +51,9 @@ export function ClientDetailClient({ client }: ClientDetailClientProps) {
             <span className="flex items-center gap-1">
               <CreditCard className="w-3.5 h-3.5" /> {client.clientDNI}
             </span>
-            <span className="flex items-center gap-1">
+            <a href={`tel:${client.clientPhone}`} className="flex items-center gap-1 text-blue-600 hover:text-blue-700 cursor-pointer">
               <Phone className="w-3.5 h-3.5" /> {client.clientPhone}
-            </span>
+            </a>
           </div>
         </div>
       </div>
@@ -131,11 +130,11 @@ export function ClientDetailClient({ client }: ClientDetailClientProps) {
                     <div className="flex items-center gap-3 mt-1.5 text-xs text-slate-500">
                       <span className="flex items-center gap-1">
                         <Calendar className="w-3 h-3" />
-                        Ingreso: {new Date(v.entryTime).toLocaleDateString("es-PE")}
+                        Ingreso: {new Date(v.entryTime).toLocaleDateString("es-PE", { timeZone: "America/Lima" })}
                       </span>
                       {v.exitTime && (
                         <span className="flex items-center gap-1">
-                          Salida: {new Date(v.exitTime).toLocaleDateString("es-PE")}
+                          Salida: {new Date(v.exitTime).toLocaleDateString("es-PE", { timeZone: "America/Lima" })}
                         </span>
                       )}
                     </div>
@@ -186,7 +185,7 @@ export function ClientDetailClient({ client }: ClientDetailClientProps) {
                         <User className="w-3 h-3" /> {s.mechanic.name}
                       </span>
                       <span className="text-xs text-slate-500 flex items-center gap-1">
-                        <Calendar className="w-3 h-3" /> {new Date(s.startTime).toLocaleDateString("es-PE")}
+                        <Calendar className="w-3 h-3" /> {new Date(s.startTime).toLocaleDateString("es-PE", { timeZone: "America/Lima" })}
                       </span>
                       {s.price != null && (
                         <span className="text-xs font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-md">

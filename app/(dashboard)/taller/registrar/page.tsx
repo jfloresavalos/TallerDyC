@@ -3,6 +3,7 @@ import { redirect } from "next/navigation"
 import { authOptions } from "@/lib/auth"
 import { getBranches } from "@/lib/actions/users"
 import { getBrandsForSelect } from "@/lib/actions/brands"
+import { getServiceTypes } from "@/lib/actions/service-types"
 import { VehicleRegistrationClient } from "@/components/taller/vehicle-registration"
 
 export default async function RegistrarPage() {
@@ -11,15 +12,21 @@ export default async function RegistrarPage() {
     redirect("/")
   }
 
-  const [branches, brands] = await Promise.all([getBranches(), getBrandsForSelect()])
+  const [branches, brands, serviceTypes] = await Promise.all([
+    getBranches(),
+    getBrandsForSelect(),
+    getServiceTypes(),
+  ])
 
   return (
     <div className="p-4 md:p-6">
       <VehicleRegistrationClient
         branches={branches}
         brands={brands}
+        serviceTypes={serviceTypes}
         isAdmin={session.user.role === "ADMIN"}
         userBranchId={session.user.branchId}
+        userRole={session.user.role}
       />
     </div>
   )

@@ -1,10 +1,11 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useTransition } from "react"
 import Link from "next/link"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Search, Users, Car, Wrench, ChevronRight } from "lucide-react"
+import { getClients } from "@/lib/actions/clients"
+import { Search, Users, Car, Wrench, ChevronRight, Loader2 } from "lucide-react"
 
 interface Client {
   clientName: string
@@ -14,51 +15,32 @@ interface Client {
   totalServices: number
 }
 
-interface ClientListClientProps {
-  initialClients: Client[]
-}
-
-export function ClientListClient({ initialClients }: ClientListClientProps) {
+export function ClientListClient() {
   const [search, setSearch] = useState("")
+  const [clients, setClients] = useState<Client[]>([])
+  const [hasSearched, setHasSearched] = useState(false)
+  const [isPending, startTransition] = useTransition()
 
-  const filtered = initialClients.filter(
-    (c) =>
-      c.clientName.toLowerCase().includes(search.toLowerCase()) ||
-      c.clientDNI.includes(search) ||
-      c.clientPhone.includes(search)
-  )
+  const handleSearch = (value: string) => {
+    setSearch(value)
+    if (value.trim().length < 2) {
+      setClients([])
+      setHasSearched(false)
+      return
+    }
+    startTransition(async () => {
+      const results = await getClients(value.trim())
+      setClients(results)
+      setHasSearched(true)
+    })
+  }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Header */}
       <div>
-        <h1 className="text-2xl md:text-3xl font-bold text-slate-900">Clientes</h1>
-        <p className="text-sm text-slate-600 mt-1">{initialClients.length} clientes registrados</p>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-3 gap-3">
-        <Card>
-          <CardContent className="p-4 text-center">
-            <Users className="w-5 h-5 text-blue-600 mx-auto mb-1" />
-            <p className="text-xl font-bold text-slate-900">{initialClients.length}</p>
-            <p className="text-xs text-slate-500">Clientes</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 text-center">
-            <Car className="w-5 h-5 text-green-600 mx-auto mb-1" />
-            <p className="text-xl font-bold text-slate-900">{initialClients.reduce((s, c) => s + c.totalVehicles, 0)}</p>
-            <p className="text-xs text-slate-500">Vehículos</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 text-center">
-            <Wrench className="w-5 h-5 text-purple-600 mx-auto mb-1" />
-            <p className="text-xl font-bold text-slate-900">{initialClients.reduce((s, c) => s + c.totalServices, 0)}</p>
-            <p className="text-xs text-slate-500">Servicios</p>
-          </CardContent>
-        </Card>
+        <h1 className="text-2xl font-bold text-slate-900">Clientes</h1>
+        <p className="text-sm text-slate-500 mt-0.5">Busca por nombre, DNI o teléfono</p>
       </div>
 
       {/* Search */}
@@ -67,21 +49,75 @@ export function ClientListClient({ initialClients }: ClientListClientProps) {
         <Input
           placeholder="Buscar por nombre, DNI o teléfono..."
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="pl-9 h-10"
+          onChange={(e) => handleSearch(e.target.value)}
+          className="pl-9 h-12 rounded-xl"
+          autoFocus
         />
+        {isPending && (
+          <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 animate-spin" />
+        )}
       </div>
 
-      {/* Client list */}
-      <div className="space-y-2">
-        {filtered.length === 0 ? (
+      {/* Stats when there are results */}
+      {hasSearched && clients.length > 0 && (
+        <div className="grid grid-cols-3 gap-3">
           <Card>
-            <CardContent className="p-8 text-center">
-              <p className="text-slate-500">No se encontraron clientes</p>
+            <CardContent className="p-4 text-center">
+              <Users className="w-5 h-5 text-blue-600 mx-auto mb-1" />
+              <p className="text-xl font-bold text-slate-900">{clients.length}</p>
+              <p className="text-xs text-slate-500">Clientes</p>
             </CardContent>
           </Card>
-        ) : (
-          filtered.map((client) => (
+          <Card>
+            <CardContent className="p-4 text-center">
+              <Car className="w-5 h-5 text-green-600 mx-auto mb-1" />
+              <p className="text-xl font-bold text-slate-900">{clients.reduce((s, c) => s + c.totalVehicles, 0)}</p>
+              <p className="text-xs text-slate-500">Vehículos</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4 text-center">
+              <Wrench className="w-5 h-5 text-purple-600 mx-auto mb-1" />
+              <p className="text-xl font-bold text-slate-900">{clients.reduce((s, c) => s + c.totalServices, 0)}</p>
+              <p className="text-xs text-slate-500">Servicios</p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* State: prompt to search */}
+      {!hasSearched && !isPending && (
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+          <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mb-4">
+            <Search className="w-8 h-8 text-slate-400" />
+          </div>
+          <h3 className="font-semibold text-slate-700 mb-1">Busca un cliente</h3>
+          <p className="text-sm text-slate-400">Escribe al menos 2 caracteres</p>
+        </div>
+      )}
+
+      {/* Loading */}
+      {isPending && (
+        <div className="flex justify-center py-10">
+          <Loader2 className="w-6 h-6 text-slate-400 animate-spin" />
+        </div>
+      )}
+
+      {/* No results */}
+      {hasSearched && !isPending && clients.length === 0 && (
+        <Card>
+          <CardContent className="p-8 text-center">
+            <Users className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+            <p className="font-medium text-slate-600">Sin resultados</p>
+            <p className="text-sm text-slate-400 mt-1">No se encontraron clientes</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Client list */}
+      {hasSearched && !isPending && clients.length > 0 && (
+        <div className="space-y-2">
+          {clients.map((client) => (
             <Link key={client.clientDNI} href={`/clientes/${client.clientDNI}`}>
               <Card className="hover:shadow-md hover:border-blue-300 transition-all duration-200 cursor-pointer">
                 <CardContent className="p-4">
@@ -109,9 +145,9 @@ export function ClientListClient({ initialClients }: ClientListClientProps) {
                 </CardContent>
               </Card>
             </Link>
-          ))
-        )}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

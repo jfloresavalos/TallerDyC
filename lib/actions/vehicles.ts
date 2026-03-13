@@ -9,8 +9,39 @@ export async function getActiveVehicles(branchId?: string) {
 
   return prisma.vehicle.findMany({
     where,
-    include: { branch: true, services: { include: { mechanic: true } } },
+    include: {
+      branch: { select: { id: true, name: true } },
+      services: {
+        select: {
+          id: true,
+          status: true,
+          serviceType: true,
+          mechanicId: true,
+          mechanic: { select: { id: true, name: true } },
+          coMechanicId: true,
+          coMechanic: { select: { id: true, name: true } },
+        },
+      },
+    },
     orderBy: { arrivalOrder: "asc" },
+  })
+}
+
+export async function getVehicleForCheckout(vehicleId: string) {
+  return prisma.vehicle.findUnique({
+    where: { id: vehicleId },
+    include: {
+      services: {
+        where: { status: "COMPLETED" },
+        include: {
+          mechanic: { select: { id: true, name: true } },
+          coMechanic: { select: { id: true, name: true } },
+          items: {
+            include: { product: { select: { id: true, name: true, unit: true } } },
+          },
+        },
+      },
+    },
   })
 }
 
@@ -20,7 +51,18 @@ export async function getVehicles(branchId?: string) {
 
   return prisma.vehicle.findMany({
     where,
-    include: { branch: true, services: { include: { mechanic: true } } },
+    include: {
+      branch: { select: { id: true, name: true } },
+      services: {
+        select: {
+          id: true,
+          status: true,
+          serviceType: true,
+          price: true,
+          mechanic: { select: { id: true, name: true } },
+        },
+      },
+    },
     orderBy: { createdAt: "desc" },
   })
 }
@@ -36,11 +78,12 @@ export async function addVehicle(data: {
   plate: string
   brand: string
   model: string
-  year: number
+  year?: number | null
   clientName: string
   clientPhone: string
   clientDNI: string
   branchId: string
+  isConverted?: boolean
 }) {
   const count = await prisma.vehicle.count({
     where: { branchId: data.branchId, status: VehicleStatus.ACTIVE },
@@ -48,10 +91,67 @@ export async function addVehicle(data: {
 
   return prisma.vehicle.create({
     data: {
-      ...data,
       plate: data.plate.toUpperCase(),
+      brand: data.brand,
+      model: data.model,
+      ...(data.year ? { year: data.year } : {}),
+      clientName: data.clientName,
+      clientPhone: data.clientPhone,
+      clientDNI: data.clientDNI,
+      branchId: data.branchId,
+      isConverted: data.isConverted ?? false,
       arrivalOrder: count + 1,
     },
+  })
+}
+
+export async function addVehicleWithService(data: {
+  plate: string
+  brand: string
+  model: string
+  year?: number | null
+  clientName: string
+  clientPhone: string
+  clientDNI: string
+  branchId: string
+  isConverted?: boolean
+  serviceType: string
+  visitType?: string
+}) {
+  const count = await prisma.vehicle.count({
+    where: { branchId: data.branchId, status: VehicleStatus.ACTIVE },
+  })
+
+  const visitType = data.visitType ?? "general"
+
+  return prisma.$transaction(async (tx) => {
+    const vehicle = await tx.vehicle.create({
+      data: {
+        plate: data.plate.toUpperCase(),
+        brand: data.brand,
+        model: data.model,
+        ...(data.year ? { year: data.year } : {}),
+        clientName: data.clientName,
+        clientPhone: data.clientPhone,
+        clientDNI: data.clientDNI,
+        branchId: data.branchId,
+        isConverted: data.isConverted ?? false,
+        visitType,
+        arrivalOrder: count + 1,
+      },
+    })
+
+    // Solo venta: no se crea servicio (solo es un registro de ingreso)
+    if (visitType !== "venta") {
+      await tx.service.create({
+        data: {
+          vehicleId: vehicle.id,
+          serviceType: data.serviceType,
+        },
+      })
+    }
+
+    return vehicle
   })
 }
 
@@ -96,6 +196,73 @@ export async function completeVehicleExit(vehicleId: string, totalPrice: number)
   ])
 }
 
+export async function checkoutVehicle(data: {
+  vehicleId: string
+  services: { id: string; price: number; discount: number }[]
+  serviceItems: { id: string; unitPrice: number; quantity: number; discount: number }[]
+  extraItems: { serviceId: string; productId: string; quantity: number; unitPrice: number; discount: number }[]
+  totalAmount: number
+  discount: number
+  voucherType: string
+  clientRuc?: string
+  clientBusinessName?: string
+  paymentMethod1: string
+  paymentAmount1: number
+  paymentMethod2?: string
+  paymentAmount2?: number
+  checkoutNotes?: string
+}) {
+  await prisma.$transaction(async (tx) => {
+    for (const svc of data.services) {
+      await tx.service.update({
+        where: { id: svc.id },
+        data: { price: svc.price, discount: svc.discount },
+      })
+    }
+    for (const item of data.serviceItems) {
+      const subtotal = item.unitPrice * item.quantity - (item.discount ?? 0)
+      await tx.serviceItem.update({
+        where: { id: item.id },
+        data: { unitPrice: item.unitPrice, subtotal, discount: item.discount },
+      })
+    }
+    for (const extra of data.extraItems) {
+      const subtotal = extra.unitPrice * extra.quantity - (extra.discount ?? 0)
+      await tx.serviceItem.create({
+        data: {
+          serviceId: extra.serviceId,
+          productId: extra.productId,
+          quantity: extra.quantity,
+          unitPrice: extra.unitPrice,
+          subtotal,
+          discount: extra.discount,
+        },
+      })
+      await tx.product.update({
+        where: { id: extra.productId },
+        data: { stock: { decrement: extra.quantity } },
+      })
+    }
+    await tx.vehicle.update({
+      where: { id: data.vehicleId },
+      data: {
+        status: VehicleStatus.COMPLETED,
+        exitTime: new Date(),
+        totalAmount: data.totalAmount,
+        discount: data.discount,
+        voucherType: data.voucherType,
+        clientRuc: data.clientRuc ?? null,
+        clientBusinessName: data.clientBusinessName ?? null,
+        paymentMethod1: data.paymentMethod1,
+        paymentAmount1: data.paymentAmount1,
+        paymentMethod2: data.paymentMethod2 ?? null,
+        paymentAmount2: data.paymentAmount2 ?? null,
+        checkoutNotes: data.checkoutNotes ?? null,
+      },
+    })
+  })
+}
+
 export async function hasServices(vehicleId: string) {
   const count = await prisma.service.count({
     where: {
@@ -132,31 +299,48 @@ export async function getIncomeReport(branchId?: string, dateFrom?: string, date
   const where: Record<string, unknown> = { status: VehicleStatus.COMPLETED }
   if (branchId) where.branchId = branchId
 
+  const dateFilter: Record<string, Date> = {}
   if (dateFrom || dateTo) {
-    const exitTimeFilter: Record<string, Date> = {}
-    if (dateFrom) exitTimeFilter.gte = new Date(dateFrom + "T00:00:00")
+    if (dateFrom) dateFilter.gte = new Date(dateFrom + "T00:00:00")
     if (dateTo) {
       const to = new Date(dateTo + "T00:00:00")
       to.setDate(to.getDate() + 1)
-      exitTimeFilter.lt = to
+      dateFilter.lt = to
     }
-    where.exitTime = exitTimeFilter
+    where.exitTime = dateFilter
   }
 
-  const vehicles = await prisma.vehicle.findMany({
-    where,
-    include: { branch: true, services: { where: { price: { not: null } } } },
-    orderBy: { exitTime: "desc" },
-  })
+  const salesWhere: Record<string, unknown> = {}
+  if (branchId) salesWhere.branchId = branchId
+  if (dateFrom || dateTo) salesWhere.createdAt = dateFilter
 
-  const totalIncome = vehicles.reduce(
+  const [vehicles, sales] = await Promise.all([
+    prisma.vehicle.findMany({
+      where,
+      include: { branch: true, services: { where: { price: { not: null } } } },
+      orderBy: { exitTime: "desc" },
+    }),
+    prisma.sale.findMany({
+      where: salesWhere,
+      include: {
+        branch: { select: { id: true, name: true } },
+        createdBy: { select: { name: true } },
+        items: { include: { product: { select: { name: true, unit: true } } } },
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+  ])
+
+  const serviceIncome = vehicles.reduce(
     (sum, v) => sum + v.services.reduce((s, svc) => s + (svc.price ?? 0), 0),
     0
   )
+  const salesIncome = sales.reduce((sum, s) => sum + s.total, 0)
+  const totalIncome = serviceIncome + salesIncome
   const totalVehicles = vehicles.length
-  const avgPerVehicle = totalVehicles > 0 ? totalIncome / totalVehicles : 0
+  const avgPerVehicle = totalVehicles > 0 ? serviceIncome / totalVehicles : 0
 
-  return { vehicles, totalIncome, totalVehicles, avgPerVehicle }
+  return { vehicles, sales, totalIncome, serviceIncome, salesIncome, totalVehicles, avgPerVehicle }
 }
 
 export async function getDashboardStats(branchId?: string) {
@@ -167,10 +351,13 @@ export async function getDashboardStats(branchId?: string) {
   const tomorrow = new Date(today)
   tomorrow.setDate(tomorrow.getDate() + 1)
 
-  const [activeVehicles, completedToday, services, allCompletedServices] = await Promise.all([
-    prisma.vehicle.count({
-      where: { ...branchFilter, status: VehicleStatus.ACTIVE },
-    }),
+  // Get all active vehicles to compute "without service" count
+  const activeVehiclesList = await prisma.vehicle.findMany({
+    where: { ...branchFilter, status: VehicleStatus.ACTIVE },
+    select: { id: true, _count: { select: { services: true } } },
+  })
+
+  const [completedToday, services] = await Promise.all([
     prisma.vehicle.count({
       where: {
         ...branchFilter,
@@ -188,31 +375,16 @@ export async function getDashboardStats(branchId?: string) {
         },
       },
     }),
-    prisma.service.findMany({
-      where: {
-        completionTime: { not: null },
-        vehicle: branchFilter,
-      },
-    }),
   ])
 
+  const activeVehicles = activeVehiclesList.length
+  const pendingVehicles = activeVehiclesList.filter(v => v._count.services === 0).length
   const totalIncome = services.reduce((sum, s) => sum + (s.price ?? 0), 0)
-
-  const avgTime =
-    allCompletedServices.length > 0
-      ? allCompletedServices.reduce((sum, s) => {
-          const start = new Date(s.startTime).getTime()
-          const end = new Date(s.completionTime!).getTime()
-          return sum + (end - start)
-        }, 0) /
-        allCompletedServices.length /
-        (1000 * 60)
-      : 0
 
   return {
     activeVehicles,
     completedToday,
     totalIncome,
-    averageServiceTime: Math.round(avgTime),
+    pendingVehicles,
   }
 }

@@ -3,9 +3,19 @@ import { redirect } from "next/navigation"
 import { authOptions } from "@/lib/auth"
 import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Users, Building2, Building, Upload, Car, ArrowRight } from "lucide-react"
+import { Users, Building2, Building, Upload, Car, ArrowRight, Wrench } from "lucide-react"
 
 const sections = [
+  {
+    title: "Tipos de Servicio",
+    description: "Agregar, activar o desactivar los tipos de servicio disponibles",
+    href: "/configuracion/servicios",
+    icon: Wrench,
+    iconBg: "bg-blue-100",
+    iconColor: "text-blue-600",
+    borderColor: "hover:border-blue-400",
+    linkColor: "text-blue-600",
+  },
   {
     title: "Gestión de Usuarios",
     description: "Crear, editar y gestionar usuarios del sistema",

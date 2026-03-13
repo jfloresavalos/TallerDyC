@@ -121,5 +121,76 @@
   }
   body {
     @apply bg-background text-foreground;
+    -webkit-font-smoothing: antialiased;
   }
 }
+
+/* ===== TALLERDYC DESIGN SYSTEM ===== */
+
+/* Smooth scrolling */
+html { scroll-behavior: smooth; }
+
+/* Scrollbar subtle */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 9999px; }
+::-webkit-scrollbar-thumb:hover { background: #cbd5e1; }
+
+/* Content max-width for readability on large screens */
+.content-wrapper {
+  width: 100%;
+  max-width: 1024px;
+}
+
+/* Status colors */
+:root {
+  --status-success: #16a34a;
+  --status-success-bg: #f0fdf4;
+  --status-success-border: #bbf7d0;
+
+  --status-warning: #ea580c;
+  --status-warning-bg: #fff7ed;
+  --status-warning-border: #fed7aa;
+
+  --status-danger: #dc2626;
+  --status-danger-bg: #fef2f2;
+  --status-danger-border: #fecaca;
+
+  --status-info: #2563eb;
+  --status-info-bg: #eff6ff;
+  --status-info-border: #bfdbfe;
+
+  --status-correction: #7c3aed;
+  --status-correction-bg: #f5f3ff;
+  --status-correction-border: #ddd6fe;
+
+  /* Safe area insets for iOS */
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-area-top: env(safe-area-inset-top, 0px);
+}
+
+/* Touch targets — min 44x44px */
+.touch-target {
+  min-height: 44px;
+  min-width: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Prevent iOS zoom on inputs */
+input, select, textarea {
+  font-size: 16px !important;
+}
+
+/* Bottom nav safe area */
+.pb-safe {
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 80px);
+}
+
+/* Status badges */
+.badge-success { background-color: var(--status-success-bg); color: var(--status-success); border: 1px solid var(--status-success-border); }
+.badge-warning { background-color: var(--status-warning-bg); color: var(--status-warning); border: 1px solid var(--status-warning-border); }
+.badge-danger { background-color: var(--status-danger-bg); color: var(--status-danger); border: 1px solid var(--status-danger-border); }
+.badge-info { background-color: var(--status-info-bg); color: var(--status-info); border: 1px solid var(--status-info-border); }
+.badge-correction { background-color: var(--status-correction-bg); color: var(--status-correction); border: 1px solid var(--status-correction-border); }

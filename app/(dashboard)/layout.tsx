@@ -11,11 +11,13 @@ export default async function DashboardLayout({ children }: { children: React.Re
     redirect("/login")
   }
 
+  const isMobileRole = session.user.role === "MECHANIC" || session.user.role === "RECEPTIONIST" || session.user.role === "CERTIFIER"
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row">
       <SidebarMenu user={session.user} />
-      <main className="flex-1 overflow-y-auto pt-16 md:pt-0">
-        <div className="w-full">
+      <main className={`flex-1 overflow-y-auto pt-14 md:pt-0 ${isMobileRole ? "pb-safe" : ""}`}>
+        <div className="w-full max-w-3xl mx-auto md:max-w-none">
           {children}
         </div>
       </main>

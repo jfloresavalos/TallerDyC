@@ -7,29 +7,34 @@ import { getActiveVehicles } from "@/lib/actions/vehicles"
 import { addService } from "@/lib/actions/services"
 import { BranchSelector } from "@/components/taller/branch-selector"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Textarea } from "@/components/ui/textarea"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import type { Branch, Vehicle, Service, User } from "@prisma/client"
+import { Wrench, User, Clock } from "lucide-react"
+import type { Branch, Vehicle, Service, User as PrismaUser } from "@prisma/client"
 
 const PREDEFINED_SERVICES = [
   "Cambio de aceite", "Cambio de filtro de aire", "Cambio de filtro de combustible",
-  "Revisión de frenos", "Cambio de pastillas de freno", "Alineación",
-  "Balanceo de llantas", "Cambio de llantas", "Revisión de suspensión",
-  "Cambio de batería", "Revisión de motor", "Reparación de transmisión",
-  "Revisión de sistema eléctrico", "Lavado y detallado", "Reparación de carrocería",
-  "Pintura", "Cambio de correa de distribución", "Revisión de radiador",
-  "Reparación de aire acondicionado", "Otro",
+  "Revision de frenos", "Cambio de pastillas de freno", "Alineacion",
+  "Balanceo de llantas", "Cambio de llantas", "Revision de suspension",
+  "Cambio de bateria", "Revision de motor", "Reparacion de transmision",
+  "Revision de sistema electrico", "Lavado y detallado", "Reparacion de carroceria",
+  "Pintura", "Cambio de correa de distribucion", "Revision de radiador",
+  "Reparacion de aire acondicionado", "Otro",
 ]
 
-type VehicleWithRelations = Vehicle & { branch: Branch; services: (Service & { mechanic: User })[] }
-type MechanicUser = User & { branch: Branch | null }
+type VehicleWithRelations = Vehicle & { branch: Branch; services: (Service & { mechanic: PrismaUser })[] }
+type MechanicUser = PrismaUser & { branch: Branch | null }
 
 interface ServiceAssignmentClientProps {
   initialVehicles: VehicleWithRelations[]
   branches: Branch[]
   mechanics: MechanicUser[]
 }
+
+const formatTime = (d: Date | string) => new Date(d).toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit", timeZone: "America/Lima" })
 
 export function ServiceAssignmentClient({ initialVehicles, branches, mechanics }: ServiceAssignmentClientProps) {
   const [vehicles, setVehicles] = useState(initialVehicles)
@@ -44,42 +49,29 @@ export function ServiceAssignmentClient({ initialVehicles, branches, mechanics }
 
   const handleBranchChange = async (branchId: string | "all") => {
     setSelectedBranch(branchId)
-    const allVehicles = await getActiveVehicles(branchId === "all" ? undefined : branchId)
-    setVehicles((allVehicles as VehicleWithRelations[]).filter((v) => v.services.length === 0))
+    const all = await getActiveVehicles(branchId === "all" ? undefined : branchId)
+    setVehicles((all as VehicleWithRelations[]).filter((v) => v.services.length === 0))
   }
 
-  const handleAssignService = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!selectedVehicle || !selectedService.trim() || !selectedMechanicId) {
-      toast.error("Completa todos los campos requeridos")
-      return
-    }
+  const resetForm = () => {
+    setSelectedService(""); setDescription(""); setSelectedMechanicId("")
+    setSelectedVehicle(null); setDialogOpen(false)
+  }
 
+  const handleAssign = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!selectedVehicle || !selectedService || !selectedMechanicId) {
+      toast.error("Completa todos los campos"); return
+    }
     setIsLoading(true)
     try {
-      await addService({
-        vehicleId: selectedVehicle.id,
-        serviceType: selectedService,
-        description: description.trim(),
-        mechanicId: selectedMechanicId,
-      })
-
-      toast.success("Servicio asignado exitosamente")
-      setDescription("")
-      setSelectedService("")
-      setSelectedVehicle(null)
-      setSelectedMechanicId("")
-      setDialogOpen(false)
-
-      // Refresh the list
-      const allVehicles = await getActiveVehicles(selectedBranch === "all" ? undefined : selectedBranch)
-      setVehicles((allVehicles as VehicleWithRelations[]).filter((v) => v.services.length === 0))
+      await addService({ vehicleId: selectedVehicle.id, serviceType: selectedService, description: description.trim(), mechanicId: selectedMechanicId })
+      toast.success("Servicio asignado")
+      resetForm()
+      const all = await getActiveVehicles(selectedBranch === "all" ? undefined : selectedBranch)
+      setVehicles((all as VehicleWithRelations[]).filter((v) => v.services.length === 0))
       router.refresh()
-    } catch {
-      toast.error("Error al asignar el servicio")
-    } finally {
-      setIsLoading(false)
-    }
+    } catch { toast.error("Error al asignar") } finally { setIsLoading(false) }
   }
 
   const filteredMechanics = selectedVehicle
@@ -89,94 +81,138 @@ export function ServiceAssignmentClient({ initialVehicles, branches, mechanics }
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-xl font-semibold">Asignar Servicio</h2>
-        <p className="text-sm text-muted-foreground">Selecciona un auto, servicio y mecánico responsable</p>
+        <h2 className="text-xl font-bold text-slate-900">Asignar Servicio</h2>
+        <p className="text-sm text-slate-500">Autos esperando asignacion de servicio y mecanico</p>
       </div>
 
       <BranchSelector branches={branches} selected={selectedBranch} onChange={handleBranchChange} />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {vehicles.length === 0 ? (
-          <Card className="md:col-span-2 lg:col-span-3">
-            <CardContent className="pt-6">
-              <p className="text-center text-muted-foreground">
-                No hay autos disponibles. Todos los autos activos ya tienen servicios asignados.
-              </p>
-            </CardContent>
-          </Card>
-        ) : (
-          vehicles.map((vehicle) => (
+      {vehicles.length === 0 ? (
+        <Card>
+          <CardContent className="py-8 text-center">
+            <p className="text-slate-500 text-sm">No hay autos pendientes de asignacion</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {vehicles.map((vehicle) => (
             <Dialog
               key={vehicle.id}
               open={dialogOpen && selectedVehicle?.id === vehicle.id}
               onOpenChange={(open) => {
                 if (open) { setSelectedVehicle(vehicle); setDialogOpen(true) }
-                else { setDialogOpen(false); setSelectedVehicle(null) }
+                else resetForm()
               }}
             >
               <DialogTrigger asChild>
-                <Card className="cursor-pointer hover:shadow-lg transition-shadow border-orange-300 bg-orange-50">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-lg">{vehicle.brand} {vehicle.model}</CardTitle>
-                    <CardDescription className="font-mono text-base">{vehicle.plate}</CardDescription>
-                    <CardDescription className="text-xs mt-1">{vehicle.branch.name}</CardDescription>
+                <Card className="cursor-pointer border-2 border-orange-200 bg-orange-50 hover:border-orange-400 hover:shadow-md transition-all">
+                  <CardHeader className="pb-2">
+                    <div className="flex items-start justify-between">
+                      <div className="min-w-0">
+                        <CardTitle className="text-base truncate">{vehicle.brand} {vehicle.model}</CardTitle>
+                        <CardDescription className="font-mono text-sm font-semibold">{vehicle.plate}</CardDescription>
+                        {vehicle.isConverted && (
+                          <span className="inline-block text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 mt-0.5">
+                            GNV/GLP
+                          </span>
+                        )}
+                      </div>
+                      <Badge className="bg-orange-600 text-white shrink-0 ml-2">#{vehicle.arrivalOrder}</Badge>
+                    </div>
                   </CardHeader>
-                  <CardContent className="space-y-2 text-sm">
-                    <p><span className="font-medium">Cliente:</span> {vehicle.clientName}</p>
-                    <p><span className="font-medium">Teléfono:</span> {vehicle.clientPhone}</p>
-                    <Badge className="bg-orange-600 hover:bg-orange-700 text-white">Falta asignar servicio</Badge>
+                  <CardContent className="space-y-1 text-sm">
+                    <div className="flex items-center gap-2 text-slate-600">
+                      <User className="w-3.5 h-3.5 shrink-0" />
+                      <span className="truncate">{vehicle.clientName}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-slate-600">
+                      <Clock className="w-3.5 h-3.5 shrink-0" />
+                      <span>{formatTime(vehicle.entryTime)}</span>
+                    </div>
+                    <div className="pt-2">
+                      <Badge variant="outline" className="bg-orange-100 text-orange-700 border-orange-200 text-xs w-full justify-center">
+                        Toca para asignar servicio
+                      </Badge>
+                    </div>
                   </CardContent>
                 </Card>
               </DialogTrigger>
-              <DialogContent className="max-h-[90vh] overflow-y-auto max-w-[calc(100vw-2rem)]">
+              <DialogContent className="max-h-[90vh] overflow-y-auto max-w-[calc(100vw-2rem)] rounded-2xl">
                 <DialogHeader>
-                  <DialogTitle>{vehicle.brand} {vehicle.model}</DialogTitle>
-                  <DialogDescription>{vehicle.plate}</DialogDescription>
+                  <DialogTitle className="text-lg">{vehicle.brand} {vehicle.model}</DialogTitle>
+                  <DialogDescription className="font-mono">{vehicle.plate} — {vehicle.clientName}</DialogDescription>
                 </DialogHeader>
-                <form onSubmit={handleAssignService} className="space-y-4">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Tipo de Servicio *</label>
-                    <select
-                      value={selectedService}
-                      onChange={(e) => setSelectedService(e.target.value)}
-                      className="w-full px-3 py-2 border border-input rounded-md text-sm bg-background h-10"
-                      required
-                    >
-                      <option value="">Selecciona un servicio</option>
-                      {PREDEFINED_SERVICES.map((s) => (<option key={s} value={s}>{s}</option>))}
-                    </select>
+                <form onSubmit={handleAssign} className="space-y-4 mt-2">
+                  <div className="space-y-1">
+                    <label className="text-sm font-semibold text-slate-700">Tipo de Servicio *</label>
+                    <Select value={selectedService} onValueChange={setSelectedService} required>
+                      <SelectTrigger className="h-14 rounded-xl border-slate-200">
+                        <SelectValue placeholder="Selecciona un servicio" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-64">
+                        {PREDEFINED_SERVICES.map((s) => (<SelectItem key={s} value={s}>{s}</SelectItem>))}
+                      </SelectContent>
+                    </Select>
                   </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Detalles Adicionales</label>
-                    <textarea
-                      placeholder="Ej: Revisar sistema de refrigeración..."
+                  <div className="space-y-1">
+                    <label className="text-sm font-semibold text-slate-700">Detalles adicionales</label>
+                    <Textarea
+                      placeholder="Notas para el mecanico..."
                       value={description}
                       onChange={(e) => setDescription(e.target.value)}
-                      className="w-full px-3 py-2 border border-input rounded-md text-sm bg-background h-10"
                       rows={3}
+                      className="rounded-xl text-base border-slate-200"
                     />
                   </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Asignar a Mecánico *</label>
-                    <select
-                      value={selectedMechanicId}
-                      onChange={(e) => setSelectedMechanicId(e.target.value)}
-                      className="w-full px-3 py-2 border border-input rounded-md text-sm bg-background h-10"
-                      required
-                    >
-                      <option value="">-- Selecciona un mecánico --</option>
-                      {filteredMechanics.map((m) => (<option key={m.id} value={m.id}>{m.name}</option>))}
-                    </select>
+                  <div className="space-y-1">
+                    <label className="text-sm font-semibold text-slate-700">Mecanico responsable *</label>
+                    {filteredMechanics.length === 0 ? (
+                      <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700">
+                        No hay mecanicos activos en esta sede
+                      </div>
+                    ) : (
+                      <Select value={selectedMechanicId} onValueChange={setSelectedMechanicId} required>
+                        <SelectTrigger className="h-14 rounded-xl border-slate-200">
+                          <SelectValue placeholder="Selecciona un mecanico">
+                            {selectedMechanicId && (
+                              <div className="flex items-center gap-2">
+                                <Wrench className="w-4 h-4 text-slate-500" />
+                                {filteredMechanics.find(m => m.id === selectedMechanicId)?.name}
+                              </div>
+                            )}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          {filteredMechanics.map((m) => (
+                            <SelectItem key={m.id} value={m.id}>
+                              <div className="flex items-center gap-2">
+                                <Wrench className="w-4 h-4 text-slate-500" />
+                                {m.name}
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
                   </div>
-                  <Button type="submit" className="w-full cursor-pointer" disabled={isLoading || !selectedMechanicId}>
-                    {isLoading ? "Asignando..." : "Asignar Servicio"}
-                  </Button>
+                  <div className="flex gap-3 pt-2">
+                    <Button type="button" variant="outline" onClick={resetForm} className="flex-1 h-14 rounded-xl cursor-pointer" disabled={isLoading}>
+                      Cancelar
+                    </Button>
+                    <Button
+                      type="submit"
+                      className="flex-[2] h-14 text-base font-semibold rounded-xl bg-blue-600 hover:bg-blue-700 cursor-pointer"
+                      disabled={isLoading || !selectedService || !selectedMechanicId}
+                    >
+                      {isLoading ? "Asignando..." : "Asignar Servicio"}
+                    </Button>
+                  </div>
                 </form>
               </DialogContent>
             </Dialog>
-          ))
-        )}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

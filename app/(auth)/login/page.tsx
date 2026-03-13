@@ -5,9 +5,8 @@ import { signIn } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Wrench } from "lucide-react"
+import { Wrench, User, Lock } from "lucide-react"
 
 export default function LoginPage() {
   const [username, setUsername] = useState("")
@@ -38,27 +37,32 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-2 text-center">
-          <div className="mx-auto bg-gradient-to-br from-blue-500 to-blue-600 p-3 rounded-xl shadow-lg w-fit">
-            <Wrench className="w-8 h-8 text-white" />
+    <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4"
+      style={{ paddingTop: "env(safe-area-inset-top, 0px)", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
+      <div className="w-full max-w-sm">
+        {/* Logo */}
+        <div className="text-center mb-8">
+          <div className="mx-auto bg-gradient-to-br from-blue-500 to-blue-600 p-4 rounded-2xl shadow-2xl w-fit mb-4">
+            <Wrench className="w-10 h-10 text-white" />
           </div>
-          <CardTitle className="text-2xl">DyC Conversiones</CardTitle>
-          <CardDescription>Sistema de Gestión de Servicios</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {error && (
-              <Alert variant="destructive">
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
+          <h1 className="text-2xl font-bold text-white">DyC Conversiones</h1>
+          <p className="text-slate-400 text-sm mt-1">Sistema de Gestión de Taller</p>
+        </div>
 
-            <div className="space-y-2">
-              <label htmlFor="username" className="text-sm font-medium">
-                Usuario
-              </label>
+        {/* Formulario */}
+        <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-2xl p-6 space-y-4">
+          {error && (
+            <Alert variant="destructive" className="text-sm">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
+          <div className="space-y-1">
+            <label htmlFor="username" className="text-sm font-semibold text-slate-700">
+              Usuario
+            </label>
+            <div className="relative">
+              <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
               <Input
                 id="username"
                 placeholder="Ingresa tu usuario"
@@ -66,13 +70,19 @@ export default function LoginPage() {
                 onChange={(e) => setUsername(e.target.value)}
                 disabled={isLoading}
                 required
+                autoCapitalize="none"
+                autoCorrect="off"
+                className="pl-10 h-14 rounded-xl border-slate-200 focus:border-blue-500"
               />
             </div>
+          </div>
 
-            <div className="space-y-2">
-              <label htmlFor="password" className="text-sm font-medium">
-                Contraseña
-              </label>
+          <div className="space-y-1">
+            <label htmlFor="password" className="text-sm font-semibold text-slate-700">
+              Contraseña
+            </label>
+            <div className="relative">
+              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
               <Input
                 id="password"
                 type="password"
@@ -81,15 +91,31 @@ export default function LoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={isLoading}
                 required
+                className="pl-10 h-14 rounded-xl border-slate-200 focus:border-blue-500"
               />
             </div>
+          </div>
 
-            <Button type="submit" className="w-full cursor-pointer" disabled={isLoading}>
-              {isLoading ? "Ingresando..." : "Ingresar"}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+          <Button
+            type="submit"
+            className="w-full h-14 text-base font-semibold rounded-xl bg-blue-600 hover:bg-blue-700 transition-colors cursor-pointer shadow-lg"
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <span className="flex items-center gap-2">
+                <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                Ingresando...
+              </span>
+            ) : (
+              "Ingresar al Sistema"
+            )}
+          </Button>
+        </form>
+
+        <p className="text-center text-xs text-slate-500 mt-6">
+          DyC Conversiones © {new Date().getFullYear()}
+        </p>
+      </div>
     </div>
   )
 }

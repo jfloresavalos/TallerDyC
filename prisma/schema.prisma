@@ -12,6 +12,7 @@ enum UserRole {
   ADMIN
   MECHANIC
   RECEPTIONIST
+  CERTIFIER
 }
 
 enum VehicleStatus {
@@ -22,23 +23,29 @@ enum VehicleStatus {
 enum ServiceStatus {
   PENDING
   IN_PROGRESS
+  PAUSED
   COMPLETED
-  PENDING_CORRECTION
 }
 
 // ---- MODELOS CORE ----
 model User {
-  id        String   @id @default(cuid())
-  username  String   @unique
-  name      String
-  password  String
-  role      UserRole @default(MECHANIC)
-  branch    Branch?  @relation(fields: [branchId], references: [id])
-  branchId  String?
-  active    Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  services  Service[]
+  id                 String               @id @default(cuid())
+  username           String               @unique
+  name               String
+  password           String
+  role               UserRole             @default(MECHANIC)
+  branch             Branch?              @relation(fields: [branchId], references: [id])
+  branchId           String?
+  active             Boolean              @default(true)
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  services           Service[]            @relation("MechanicServices")
+  coMechanicServices Service[]            @relation("CoMechanicServices")
+  handoffsFrom       ServiceHandoff[]     @relation("HandoffFrom")
+  handoffsTo         ServiceHandoff[]     @relation("HandoffTo")
+  certifications     ServiceCertification[]
+  deletedServices    ServiceDeletion[]
+  sales              Sale[]
 
   @@index([username])
   @@index([role])
@@ -53,53 +60,214 @@ model Branch {
   active    Boolean   @default(true)
   users     User[]
   vehicles  Vehicle[]
+  products  Product[]
+  sales     Sale[]
   createdAt DateTime  @default(now())
 }
 
 model Vehicle {
-  id           String        @id @default(cuid())
-  plate        String
-  brand        String
-  model        String
-  year         Int
-  clientName   String
-  clientPhone  String
-  clientDNI    String
-  entryTime    DateTime      @default(now())
-  exitTime     DateTime?
-  branch       Branch        @relation(fields: [branchId], references: [id])
-  branchId     String
-  status       VehicleStatus @default(ACTIVE)
-  arrivalOrder Int
-  services     Service[]
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  id                  String        @id @default(cuid())
+  plate               String
+  brand               String
+  model               String
+  year                Int?
+  clientName          String
+  clientPhone         String
+  clientDNI           String
+  entryTime           DateTime      @default(now())
+  exitTime            DateTime?
+  branch              Branch        @relation(fields: [branchId], references: [id])
+  branchId            String
+  status              VehicleStatus @default(ACTIVE)
+  arrivalOrder        Int
+  isConverted         Boolean       @default(false)
+  visitType           String        @default("general")
+  services            Service[]
+  // Campos de cobro/salida
+  totalAmount         Float?
+  discount            Float?        @default(0)
+  voucherType         String?       // "boleta" | "factura" | "ninguno"
+  clientRuc           String?
+  clientBusinessName  String?
+  paymentMethod1      String?       // "efectivo" | "tarjeta" | "transferencia"
+  paymentAmount1      Float?
+  paymentMethod2      String?
+  paymentAmount2      Float?
+  checkoutNotes       String?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
 
   @@index([plate])
   @@index([clientDNI])
   @@index([branchId, status])
+  @@index([isConverted])
 }
 
 model Service {
-  id                  String        @id @default(cuid())
-  vehicle             Vehicle       @relation(fields: [vehicleId], references: [id])
-  vehicleId           String
-  serviceType         String
-  description         String        @default("")
-  mechanic            User          @relation(fields: [mechanicId], references: [id])
-  mechanicId          String
-  startTime           DateTime      @default(now())
-  completionTime      DateTime?
-  status              ServiceStatus @default(IN_PROGRESS)
-  correctionRequested Boolean       @default(false)
-  correctionReason    String?
-  price               Float?
-  createdAt           DateTime      @default(now())
-  updatedAt           DateTime      @updatedAt
+  id             String                @id @default(cuid())
+  vehicle        Vehicle               @relation(fields: [vehicleId], references: [id])
+  vehicleId      String
+  serviceType    String
+  description    String                @default("")
+  mechanic       User?                 @relation("MechanicServices", fields: [mechanicId], references: [id])
+  mechanicId     String?
+  coMechanic     User?                 @relation("CoMechanicServices", fields: [coMechanicId], references: [id])
+  coMechanicId   String?
+  startTime      DateTime              @default(now())
+  completionTime DateTime?
+  status         ServiceStatus         @default(IN_PROGRESS)
+  pauseReason    String?
+  price          Float?
+  discount       Float?        @default(0)
+  items          ServiceItem[]
+  handoffs       ServiceHandoff[]
+  certification  ServiceCertification?
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
 
   @@index([vehicleId])
   @@index([mechanicId])
+  @@index([coMechanicId])
   @@index([status])
+}
+
+// ---- HISTORIAL DE RELEVOS ----
+model ServiceHandoff {
+  id             String   @id @default(cuid())
+  serviceId      String
+  service        Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  fromMechanicId String
+  fromMechanic   User     @relation("HandoffFrom", fields: [fromMechanicId], references: [id])
+  toMechanicId   String
+  toMechanic     User     @relation("HandoffTo", fields: [toMechanicId], references: [id])
+  note           String?
+  handoffTime    DateTime @default(now())
+
+  @@index([serviceId])
+  @@index([fromMechanicId])
+  @@index([toMechanicId])
+}
+
+// ---- LOG DE ELIMINACIONES ----
+model ServiceDeletion {
+  id          String   @id @default(cuid())
+  serviceId   String
+  vehicleId   String
+  mechanicId  String
+  serviceType String
+  reason      String
+  deletedAt   DateTime @default(now())
+  deletedById String
+  deletedBy   User     @relation(fields: [deletedById], references: [id])
+
+  @@index([vehicleId])
+  @@index([deletedById])
+  @@index([deletedAt])
+}
+
+// ---- CERTIFICACIONES ----
+model ServiceCertification {
+  id          String   @id @default(cuid())
+  serviceId   String   @unique
+  service     Service  @relation(fields: [serviceId], references: [id])
+  certifierId String
+  certifier   User     @relation(fields: [certifierId], references: [id])
+  certifiedAt DateTime @default(now())
+  notes       String?
+  passed      Boolean  @default(true)
+
+  @@index([certifierId])
+  @@index([passed])
+}
+
+// ---- PRODUCTOS / INVENTARIO ----
+model Product {
+  id          String        @id @default(cuid())
+  name        String
+  code        String?       @unique
+  description String?
+  unit        String        @default("unidad")
+  price       Float
+  cost        Float?
+  stock       Int           @default(0)
+  minStock    Int           @default(5)
+  category    String?
+  brand       String?
+  branchId    String?
+  branch      Branch?       @relation(fields: [branchId], references: [id])
+  active       Boolean       @default(true)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  saleItems    SaleItem[]
+  serviceItems ServiceItem[]
+
+  @@index([branchId])
+  @@index([active])
+  @@index([category])
+}
+
+// ---- VENTAS ----
+model Sale {
+  id          String     @id @default(cuid())
+  saleNumber  String     @unique
+  clientName  String?
+  clientDNI   String?
+  clientPhone String?
+  total       Float
+  branchId    String
+  branch      Branch     @relation(fields: [branchId], references: [id])
+  createdById String
+  createdBy   User       @relation(fields: [createdById], references: [id])
+  items       SaleItem[]
+  createdAt   DateTime   @default(now())
+
+  @@index([branchId])
+  @@index([clientDNI])
+  @@index([createdAt])
+}
+
+model SaleItem {
+  id        String  @id @default(cuid())
+  saleId    String
+  sale      Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  quantity  Float
+  unitPrice Float
+  subtotal  Float
+
+  @@index([saleId])
+  @@index([productId])
+}
+
+// ---- REPUESTOS EN SERVICIOS ----
+model ServiceItem {
+  id        String   @id @default(cuid())
+  serviceId String
+  service   Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product  @relation(fields: [productId], references: [id])
+  quantity  Float
+  unitPrice Float
+  subtotal  Float
+  discount  Float?   @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([serviceId])
+  @@index([productId])
+}
+
+// ---- TIPOS DE SERVICIO ----
+model ServiceType {
+  id     String  @id @default(cuid())
+  name   String  @unique
+  code   String? @unique
+  price  Float?
+  cost   Float?
+  color  String  @default("green")
+  active Boolean @default(true)
+
+  @@index([active])
 }
 
 model Company {

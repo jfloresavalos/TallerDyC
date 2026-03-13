@@ -9,6 +9,7 @@ export default async function DashboardIndex() {
   if (session.user.role === "ADMIN") redirect("/dashboard")
   if (session.user.role === "RECEPTIONIST") redirect("/taller/registrar")
   if (session.user.role === "MECHANIC") redirect("/mis-autos")
+  if (session.user.role === "CERTIFIER") redirect("/certificar")
 
   redirect("/dashboard")
 }

@@ -14,5 +14,6 @@ export const config = {
     "/reportes/:path*",
     "/configuracion/:path*",
     "/inventario/:path*",
+    "/certificar/:path*",
   ],
 }

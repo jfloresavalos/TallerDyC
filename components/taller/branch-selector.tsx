@@ -1,6 +1,5 @@
 "use client"
 
-import { Button } from "@/components/ui/button"
 import type { Branch } from "@prisma/client"
 
 interface BranchSelectorProps {
@@ -10,32 +9,26 @@ interface BranchSelectorProps {
 }
 
 export function BranchSelector({ branches, selected, onChange }: BranchSelectorProps) {
+  const allOptions = [...branches, { id: "all", name: "Todas" }]
+
   return (
-    <div className="bg-white rounded-lg border border-slate-200 p-3 shadow-sm">
-      <label className="text-xs font-medium text-slate-700 block mb-2">
-        Seleccionar Sede:
-      </label>
-      <div className="flex flex-wrap gap-2">
-        {branches.map((branch) => (
-          <Button
-            key={branch.id}
-            variant={selected === branch.id ? "default" : "outline"}
-            size="sm"
-            onClick={() => onChange(branch.id)}
-            className="text-xs h-9 px-3 cursor-pointer"
+    <div className="flex items-center gap-1.5 flex-wrap">
+      {allOptions.map((b) => {
+        const active = selected === b.id
+        return (
+          <button
+            key={b.id}
+            onClick={() => onChange(b.id as string | "all")}
+            className={`h-7 px-3 rounded-full text-xs font-semibold transition-all cursor-pointer ${
+              active
+                ? "bg-slate-900 text-white shadow-sm"
+                : "bg-white text-slate-500 border border-slate-200 hover:border-slate-300 hover:text-slate-700"
+            }`}
           >
-            {branch.name}
-          </Button>
-        ))}
-        <Button
-          variant={selected === "all" ? "default" : "outline"}
-          size="sm"
-          onClick={() => onChange("all")}
-          className="text-xs h-9 px-3 cursor-pointer"
-        >
-          Todas
-        </Button>
-      </div>
+            {b.name}
+          </button>
+        )
+      })}
     </div>
   )
 }

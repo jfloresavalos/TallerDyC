@@ -4,8 +4,11 @@ import { useState } from "react"
 import { usePathname } from "next/navigation"
 import { signOut } from "next-auth/react"
 import Link from "next/link"
-import { Button } from "@/components/ui/button"
-import { Menu, X, LayoutDashboard, FileText, Wrench, LogOut, Car, ClipboardList, Settings, Users2 } from "lucide-react"
+import {
+  Menu, X, LayoutDashboard, FileText, Wrench, LogOut, Car,
+  ClipboardList, Settings, Users2, ShoppingCart,
+  Package, ChevronRight, ShieldCheck
+} from "lucide-react"
 import type { UserRole } from "@prisma/client"
 
 interface SidebarMenuProps {
@@ -16,115 +19,253 @@ interface SidebarMenuProps {
   }
 }
 
-const menuConfig = {
+const menuConfig: Record<UserRole, { group: string; items: { href: string; label: string; icon: typeof Car }[] }[]> = {
   ADMIN: [
-    { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-    { href: "/taller", label: "Autos Activos", icon: Car },
-    { href: "/taller/registrar", label: "Registrar Auto", icon: FileText },
-    { href: "/taller/asignar", label: "Asignar Servicio", icon: Wrench },
-    { href: "/reportes", label: "Reportes", icon: ClipboardList },
-    { href: "/clientes", label: "Clientes", icon: Users2 },
-    { href: "/configuracion", label: "Configuración", icon: Settings },
+    { group: "Taller", items: [
+      { href: "/dashboard",          label: "Dashboard",        icon: LayoutDashboard },
+      { href: "/taller",             label: "Autos Activos",    icon: Car },
+      { href: "/taller/registrar",   label: "Registrar Auto",   icon: FileText },
+    ]},
+    { group: "Negocio", items: [
+      { href: "/clientes",   label: "Clientes",   icon: Users2 },
+      { href: "/inventario", label: "Inventario", icon: Package },
+      { href: "/ventas",     label: "Ventas",     icon: ShoppingCart },
+      { href: "/reportes",   label: "Reportes",   icon: ClipboardList },
+    ]},
+    { group: "Sistema", items: [
+      { href: "/configuracion", label: "Configuración", icon: Settings },
+    ]},
   ],
   RECEPTIONIST: [
-    { href: "/taller/registrar", label: "Registrar Auto", icon: FileText },
+    { group: "Trabajo", items: [
+      { href: "/taller/registrar", label: "Registrar Auto", icon: FileText },
+    ]},
   ],
   MECHANIC: [
-    { href: "/mis-autos", label: "Mis Autos Asignados", icon: Wrench },
+    { group: "Mi Trabajo", items: [
+      { href: "/mis-autos", label: "Mis Autos Asignados", icon: Wrench },
+    ]},
   ],
+  CERTIFIER: [
+    { group: "Mi Trabajo", items: [
+      { href: "/certificar", label: "Certificar Servicios", icon: ShieldCheck },
+    ]},
+  ],
+}
+
+const roleLabel: Record<UserRole, string> = {
+  ADMIN: "Administrador",
+  MECHANIC: "Mecánico",
+  RECEPTIONIST: "Recepcionista",
+  CERTIFIER: "Certificador",
+}
+
+const roleColors: Record<UserRole, { gradient: string; badge: string; initial: string }> = {
+  ADMIN:        { gradient: "from-blue-500 to-blue-700",     badge: "bg-blue-500/20 text-blue-300",     initial: "bg-blue-600" },
+  MECHANIC:     { gradient: "from-violet-500 to-violet-700", badge: "bg-violet-500/20 text-violet-300", initial: "bg-violet-600" },
+  RECEPTIONIST: { gradient: "from-orange-500 to-orange-600", badge: "bg-orange-500/20 text-orange-300", initial: "bg-orange-500" },
+  CERTIFIER:    { gradient: "from-emerald-500 to-emerald-700", badge: "bg-emerald-500/20 text-emerald-300", initial: "bg-emerald-600" },
+}
+
+const mobileNavItems: Record<UserRole, { href: string; label: string; icon: typeof Car }[]> = {
+  ADMIN: [
+    { href: "/dashboard", label: "Inicio",    icon: LayoutDashboard },
+    { href: "/taller",    label: "Taller",    icon: Car },
+    { href: "/ventas",    label: "Ventas",    icon: ShoppingCart },
+    { href: "/reportes",  label: "Reportes",  icon: ClipboardList },
+  ],
+  MECHANIC:     [{ href: "/mis-autos",   label: "Mis Autos",   icon: Wrench }],
+  RECEPTIONIST: [
+    { href: "/taller/registrar", label: "Registrar", icon: FileText },
+  ],
+  CERTIFIER: [{ href: "/certificar", label: "Certificar", icon: ShieldCheck }],
 }
 
 export default function SidebarMenu({ user }: SidebarMenuProps) {
   const [isOpen, setIsOpen] = useState(false)
   const pathname = usePathname()
-  const menuItems = menuConfig[user.role] || []
+  const groups = menuConfig[user.role] || []
+  const isMobileRole = user.role === "MECHANIC" || user.role === "RECEPTIONIST" || user.role === "CERTIFIER"
+  const colors = roleColors[user.role]
+  const navItems = mobileNavItems[user.role] || []
+
+  const isActive = (href: string) =>
+    href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(href + "/")
+
+  const userInitial = user.name.charAt(0).toUpperCase()
 
   return (
     <>
-      {/* Mobile header */}
-      <div className="md:hidden fixed top-0 left-0 right-0 h-16 bg-white border-b border-slate-200 flex items-center px-4 z-40 shadow-sm">
-        <button
-          onClick={() => setIsOpen(!isOpen)}
-          className="p-2 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+      {/* ══════════════════════════════════════
+          MOBILE: Bottom Nav (MECHANIC / RECEPTIONIST / CERTIFIER)
+          ══════════════════════════════════════ */}
+      {isMobileRole && (
+        <nav
+          className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-100"
+          style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)", boxShadow: "0 -1px 12px rgba(0,0,0,0.08)" }}
         >
-          {isOpen ? (
-            <X className="w-5 h-5 text-slate-900" />
-          ) : (
-            <Menu className="w-5 h-5 text-slate-900" />
-          )}
-        </button>
-        <div className="ml-3 flex items-center gap-2">
-          <div className="bg-gradient-to-br from-blue-500 to-blue-600 p-1.5 rounded-lg">
-            <Wrench className="w-4 h-4 text-white" />
+          <div className="flex">
+            {navItems.map((item) => {
+              const Icon = item.icon
+              const active = isActive(item.href)
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`flex-1 flex flex-col items-center justify-center gap-1 pt-3 pb-2 transition-colors cursor-pointer min-h-[56px] ${
+                    active ? "text-blue-600" : "text-slate-400"
+                  }`}
+                >
+                  <div className="relative flex items-center justify-center w-6 h-6">
+                    <Icon className="w-[22px] h-[22px]" />
+                    {active && (
+                      <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 w-5 h-0.5 bg-blue-600 rounded-full" />
+                    )}
+                  </div>
+                  <span className={`text-[10px] font-medium leading-none ${active ? "text-blue-600" : "text-slate-400"}`}>
+                    {item.label}
+                  </span>
+                </Link>
+              )
+            })}
+            <button
+              onClick={() => signOut({ callbackUrl: "/login" })}
+              className="flex-1 flex flex-col items-center justify-center gap-1 pt-3 pb-2 text-slate-400 cursor-pointer min-h-[56px]"
+            >
+              <LogOut className="w-[22px] h-[22px]" />
+              <span className="text-[10px] font-medium leading-none">Salir</span>
+            </button>
           </div>
-          <h1 className="font-bold text-sm text-slate-900">DyC Conversiones</h1>
+        </nav>
+      )}
+
+      {/* ══════════════════════════════════════
+          MOBILE: Top Header (todos los roles)
+          ══════════════════════════════════════ */}
+      <div
+        className="md:hidden fixed top-0 left-0 right-0 z-40 bg-white border-b border-slate-100"
+        style={{ paddingTop: "env(safe-area-inset-top, 0px)", boxShadow: "0 1px 8px rgba(0,0,0,0.06)" }}
+      >
+        <div className="flex items-center h-14 px-4 gap-3">
+          {/* Hamburger (solo ADMIN) */}
+          {!isMobileRole && (
+            <button
+              onClick={() => setIsOpen(!isOpen)}
+              className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-slate-100 transition-colors cursor-pointer -ml-1 shrink-0"
+              aria-label="Abrir menú"
+            >
+              {isOpen ? <X className="w-5 h-5 text-slate-700" /> : <Menu className="w-5 h-5 text-slate-700" />}
+            </button>
+          )}
+
+          {/* Logo + nombre */}
+          <div className="flex items-center gap-2.5 flex-1 min-w-0">
+            <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${colors.gradient} flex items-center justify-center shadow-sm shrink-0`}>
+              <Wrench className="w-4 h-4 text-white" />
+            </div>
+            <div className="min-w-0">
+              <p className="font-bold text-sm text-slate-900 leading-none truncate">DyC Conversiones</p>
+              <p className="text-[11px] text-slate-500 leading-none mt-0.5 truncate">{user.name}</p>
+            </div>
+          </div>
+
+          {/* Badge de rol */}
+          <div className={`shrink-0 text-[10px] font-semibold px-2.5 py-1 rounded-full bg-gradient-to-r ${colors.gradient} text-white`}>
+            {roleLabel[user.role]}
+          </div>
         </div>
       </div>
 
-      {/* Sidebar */}
+      {/* ══════════════════════════════════════
+          DESKTOP SIDEBAR (siempre visible en md+)
+          MOBILE DRAWER (solo ADMIN en mobile)
+          ══════════════════════════════════════ */}
       <aside
-        className={`fixed left-0 top-0 h-screen w-64 bg-gradient-to-b from-slate-900 to-slate-800 text-white transform transition-transform duration-300 z-50 md:translate-x-0 md:relative md:w-64 md:sticky md:top-0 ${
-          isOpen ? "translate-x-0" : "-translate-x-full"
-        }`}
+        className={`fixed left-0 top-0 h-screen w-64 bg-slate-900 flex flex-col transform transition-transform duration-300 ease-in-out z-50
+          md:translate-x-0 md:relative md:w-64 md:sticky md:top-0 md:shrink-0
+          ${isOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full"}`}
       >
-        {/* Logo */}
-        <div className="p-6 border-b border-slate-700">
+        {/* ── Logo ── */}
+        <div className="px-5 pt-6 pb-4">
           <div className="flex items-center gap-3">
-            <div className="bg-gradient-to-br from-blue-500 to-blue-600 p-2 rounded-lg shadow-lg">
+            <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${colors.gradient} flex items-center justify-center shadow-lg shrink-0`}>
               <Wrench className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h1 className="font-bold text-base md:text-lg">DyC Conversiones</h1>
-              <p className="text-xs text-slate-400">Sistema de Gestión</p>
+              <h1 className="font-bold text-white text-base leading-tight">DyC Conversiones</h1>
+              <p className="text-xs text-slate-500 leading-none mt-0.5">Sistema de Gestión</p>
             </div>
           </div>
-          <div className="mt-3 text-xs text-slate-400">
-            <p>{user.name}</p>
-            <p className="capitalize">{user.role.toLowerCase()}</p>
+
+          {/* User info compacto */}
+          <div className="mt-4 flex items-center gap-2.5 bg-slate-800 rounded-xl px-3 py-2.5">
+            <div className={`w-8 h-8 rounded-lg ${colors.initial} flex items-center justify-center text-white text-sm font-bold shrink-0`}>
+              {userInitial}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-white truncate leading-tight">{user.name}</p>
+              <p className="text-xs text-slate-400 leading-none mt-0.5">{roleLabel[user.role]}</p>
+            </div>
+            {user.branchCode && (
+              <span className="text-[10px] font-semibold bg-slate-700 text-slate-300 px-1.5 py-0.5 rounded-md shrink-0">
+                {user.branchCode}
+              </span>
+            )}
           </div>
         </div>
 
-        {/* Navigation */}
-        <nav className="p-4 space-y-1 overflow-y-auto max-h-[calc(100vh-280px)]">
-          {menuItems.map((item) => {
-            const Icon = item.icon
-            const isActive = item.href === "/" ? pathname === "/" : pathname === item.href || pathname.startsWith(item.href + "/")
+        {/* ── Divider ── */}
+        <div className="h-px bg-slate-800 mx-5" />
 
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={() => setIsOpen(false)}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 cursor-pointer ${
-                  isActive
-                    ? "bg-blue-600 text-white shadow-md"
-                    : "text-slate-300 hover:bg-slate-700 hover:text-white"
-                }`}
-              >
-                <Icon className="w-5 h-5 flex-shrink-0" />
-                <span className="text-sm font-medium">{item.label}</span>
-              </Link>
-            )
-          })}
+        {/* ── Navigation ── */}
+        <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-5">
+          {groups.map((group) => (
+            <div key={group.group}>
+              <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-widest px-3 mb-1.5">
+                {group.group}
+              </p>
+              <div className="space-y-0.5">
+                {group.items.map((item) => {
+                  const Icon = item.icon
+                  const active = isActive(item.href)
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      onClick={() => setIsOpen(false)}
+                      className={`group flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-150 cursor-pointer min-h-[44px] ${
+                        active
+                          ? "bg-blue-600 text-white shadow-sm"
+                          : "text-slate-400 hover:bg-slate-800 hover:text-slate-100"
+                      }`}
+                    >
+                      <Icon className={`shrink-0 ${active ? "text-white" : "text-slate-500 group-hover:text-slate-300"}`} style={{ width: '18px', height: '18px' }} />
+                      <span className="text-sm font-medium flex-1">{item.label}</span>
+                      {active && <ChevronRight className="w-3.5 h-3.5 text-blue-300 shrink-0" />}
+                    </Link>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
         </nav>
 
-        {/* Footer */}
-        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-slate-700 bg-slate-900 space-y-2">
-          <Button
+        {/* ── Footer ── */}
+        <div className="px-3 pb-5 pt-3 border-t border-slate-800">
+          <button
             onClick={() => signOut({ callbackUrl: "/login" })}
-            variant="outline"
-            className="w-full gap-2 bg-slate-800 border-slate-600 text-white hover:bg-slate-700 hover:border-slate-500 transition-colors cursor-pointer"
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-white transition-all duration-150 cursor-pointer min-h-[44px] group"
           >
-            <LogOut className="w-4 h-4" />
-            <span className="text-sm">Cerrar Sesión</span>
-          </Button>
+            <LogOut className="w-[18px] h-[18px] shrink-0 group-hover:text-red-400 transition-colors" />
+            <span className="text-sm font-medium">Cerrar Sesión</span>
+          </button>
         </div>
       </aside>
 
-      {/* Mobile Overlay */}
-      {isOpen && (
+      {/* Mobile Overlay (solo ADMIN) */}
+      {isOpen && !isMobileRole && (
         <div
-          className="fixed inset-0 bg-black/50 z-40 md:hidden cursor-pointer"
+          className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40 md:hidden cursor-pointer"
           onClick={() => setIsOpen(false)}
         />
       )}
