@@ -1,0 +1,1 @@
+UPDATE "Service" SET status = 'IN_PROGRESS' WHERE status = 'PENDING_CORRECTION';

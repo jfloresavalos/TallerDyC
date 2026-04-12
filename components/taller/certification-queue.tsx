@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { getCertificationQueue, getCertifiedServices, certifyService } from "@/lib/actions/certifications"
@@ -72,28 +72,27 @@ export function CertificationQueueClient({
   const [certifyPassed, setCertifyPassed] = useState<boolean | null>(null)
   const [certifyNotes, setCertifyNotes] = useState("")
   const [certifyLoading, setCertifyLoading] = useState(false)
+  const [isPending, startTransition] = useTransition()
 
   const router = useRouter()
 
-  const refresh = async () => {
-    const branchId = selectedBranchId === "__all__" ? null : selectedBranchId
-    const [q, c] = await Promise.all([
-      getCertificationQueue(branchId),
-      getCertifiedServices(branchId),
-    ])
-    setQueue(q as QueueService[])
-    setCertified(c as CertifiedRecord[])
+  // Lógica de fetch centralizada — usada por refresh y handleBranchChange
+  const fetchData = (branchId: string | null) => {
+    startTransition(async () => {
+      const [q, c] = await Promise.all([
+        getCertificationQueue(branchId),
+        getCertifiedServices(branchId),
+      ])
+      setQueue(q as QueueService[])
+      setCertified(c as CertifiedRecord[])
+    })
   }
 
-  const handleBranchChange = async (value: string) => {
+  const refresh = () => fetchData(selectedBranchId === "__all__" ? null : selectedBranchId)
+
+  const handleBranchChange = (value: string) => {
     setSelectedBranchId(value)
-    const branchId = value === "__all__" ? null : value
-    const [q, c] = await Promise.all([
-      getCertificationQueue(branchId),
-      getCertifiedServices(branchId),
-    ])
-    setQueue(q as QueueService[])
-    setCertified(c as CertifiedRecord[])
+    fetchData(value === "__all__" ? null : value)
   }
 
   const handleOpenCertify = (serviceId: string) => {
@@ -114,7 +113,7 @@ export function CertificationQueueClient({
       setCertifyId(null)
       setCertifyPassed(null)
       setCertifyNotes("")
-      await refresh()
+      refresh()
       router.refresh()
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Error al certificar"
@@ -127,14 +126,14 @@ export function CertificationQueueClient({
   return (
     <div className="space-y-4">
       {/* Header + filtro de sede */}
-      <div className="flex items-center justify-between gap-3 flex-wrap">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold text-slate-900">Certificaciones</h1>
           <p className="text-sm text-slate-500">Revisión de trabajos completados</p>
         </div>
         {branches.length > 1 && (
           <Select value={selectedBranchId} onValueChange={handleBranchChange}>
-            <SelectTrigger className="w-44 h-10 rounded-xl border-slate-200 text-sm">
+            <SelectTrigger className="w-full sm:w-44 h-11 rounded-xl border-slate-200 text-sm">
               <SelectValue placeholder="Sede" />
             </SelectTrigger>
             <SelectContent>
@@ -151,7 +150,7 @@ export function CertificationQueueClient({
       <div className="flex gap-1 bg-slate-100 p-1 rounded-xl">
         <button
           onClick={() => setActiveTab("queue")}
-          className={`flex-1 h-10 rounded-lg text-sm font-semibold transition-all cursor-pointer ${
+          className={`flex-1 h-11 rounded-lg text-sm font-semibold transition-all cursor-pointer ${
             activeTab === "queue" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
           }`}
         >
@@ -163,7 +162,7 @@ export function CertificationQueueClient({
         </button>
         <button
           onClick={() => setActiveTab("history")}
-          className={`flex-1 h-10 rounded-lg text-sm font-semibold transition-all cursor-pointer ${
+          className={`flex-1 h-11 rounded-lg text-sm font-semibold transition-all cursor-pointer ${
             activeTab === "history" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
           }`}
         >

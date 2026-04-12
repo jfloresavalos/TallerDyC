@@ -23,15 +23,29 @@ app/
 │   ├── dashboard/        # KPIs — solo ADMIN
 │   ├── taller/           # Autos activos, registrar, asignar
 │   ├── mis-autos/        # Servicios asignados — solo MECHANIC
-│   ├── clientes/         # Listado y detalle por DNI — solo ADMIN
+│   ├── certificar/       # Cola de certificación — solo CERTIFIER
+│   ├── clientes/         # Listado y detalle por DNI — ADMIN
+│   │   └── [dni]/        # Detalle del cliente (tabs: Vehículos/Servicios/Compras)
 │   ├── reportes/         # Servicios e ingresos — solo ADMIN
 │   ├── ventas/           # Ventas de mostrador — ADMIN/RECEPTIONIST
 │   ├── inventario/       # Productos y repuestos — ADMIN
 │   └── configuracion/    # Usuarios, sedes, marcas, servicios, empresa — solo ADMIN
+│       ├── usuarios/
+│       └── servicios/    # Tipos de servicio con color
 ├── api/auth/[...nextauth]/ # Endpoint NextAuth
 components/
 ├── ui/                   # Primitivas shadcn/ui
 ├── taller/               # Componentes de dominio
+│   ├── active-vehicles.tsx         # Tablero admin + CheckoutDialog
+│   ├── my-assigned-vehicles.tsx    # Vista mecánico: trabajos + disponibles
+│   ├── checkout-dialog.tsx         # Cobro con pago mixto
+│   ├── certification-queue.tsx     # Vista certificador
+│   ├── client-list.tsx             # Búsqueda unificada + Nuevo Cliente
+│   ├── client-detail.tsx           # Detalle con tabs: vehículos/servicios/compras
+│   ├── sales-client.tsx            # Listado ventas con filtros y dialog detalle
+│   ├── new-sale-dialog.tsx         # Dialog nueva venta: carrito + cliente + pago
+│   ├── service-types-client.tsx    # CRUD tipos de servicio con paleta de color
+│   └── inventory-client.tsx        # CRUD inventario productos
 └── sidebar-menu.tsx      # Menú lateral responsivo
 lib/
 ├── auth.ts               # Configuración NextAuth
@@ -41,13 +55,20 @@ lib/
     ├── vehicles.ts
     ├── services.ts
     ├── users.ts
-    ├── clients.ts
+    ├── clients.ts        # + upsertClientContact + searchClientQuick (3 fuentes)
+    ├── sales.ts          # + getSalesToday
+    ├── products.ts
+    ├── service-types.ts  # + updateServiceTypeColor
+    ├── certifications.ts # NUEVO
     ├── brands.ts
     └── company.ts
 prisma/
 ├── schema.prisma
 ├── seed.ts               # Seed inicial (admin, sedes, etc.)
-└── seed-brands.ts        # Seed de marcas de autos
+├── seed-brands.ts        # Seed de marcas de autos
+└── seed-demo.js          # Seed demo con 12 vehículos (4 tipos) para testing
+scripts/
+└── seed-demo.js          # (alias) Seed rápido para demos y e2e
 ```
 
 ## Base de Datos
@@ -55,22 +76,23 @@ prisma/
 ### Modelos
 - **User**: id, username (único), name, password (hash), role, branchId?, active
 - **Branch**: id, name, code (único), address?, phone?, active
-- **Vehicle**: id, plate, brand, model, year, clientName, clientPhone, clientDNI, entryTime, exitTime?, status, arrivalOrder, **entryType** ("DIRECT"|"DIAGNOSTIC"), **visitType** ("general"|"garantia"|"revision"|"venta"), branchId
-- **Service**: id, vehicleId, serviceType, description, mechanicId, startTime, completionTime?, status, correctionRequested, correctionReason?, price?, **items ServiceItem[]**
-- **ServiceItem**: id, serviceId, productId, quantity, unitPrice, subtotal, createdAt — `onDelete: Cascade`
-- **Product**: id, name, code?, description?, unit, price, cost?, stock, minStock, category?, brand?, branchId?, active, **serviceItems ServiceItem[]**
-- **Sale**: id, saleNumber (único), clientName?, clientDNI?, clientPhone?, total, branchId, createdById, items SaleItem[]
+- **Vehicle**: id, plate, brand, model, year, clientName, clientPhone, clientDNI, entryTime, exitTime?, status, arrivalOrder, entryType ("DIRECT"|"DIAGNOSTIC"), visitType ("general"|"garantia"|"revision"|"venta"), branchId, totalAmount?, discount?, voucherType?, clientRuc?, clientBusinessName?, paymentMethod1/2?, paymentAmount1/2?, checkoutNotes?
+- **Service**: id, vehicleId, serviceType, description, mechanicId?, coMechanicId?, startTime, completionTime?, status, correctionRequested, correctionReason?, price?, discount?, items ServiceItem[], certifiedAt?, certifiedById?
+- **ServiceItem**: id, serviceId, productId, quantity, unitPrice, subtotal, discount?, createdAt — `onDelete: Cascade`
+- **Product**: id, name, code?, description?, unit, price, cost?, stock, minStock, category?, brand?, branchId?, active, serviceItems ServiceItem[], saleItems SaleItem[]
+- **Sale**: id, saleNumber (único), clientName?, clientDNI?, clientPhone?, total, paymentMethod1?, paymentAmount1?, paymentMethod2?, paymentAmount2?, branchId, createdById, items SaleItem[], createdAt
 - **SaleItem**: id, saleId, productId, quantity, unitPrice, subtotal
-- **ServiceType**: id, name (único), code?, price?, cost?, active
+- **ServiceType**: id, name (único), color String? (hex), active
+- **ClientContact**: id, name, dni (único), phone?, notes?, createdAt, updatedAt — registro manual de clientes
 - **Company**: id, name, ruc?, address?, phone?, email?, logo?
 - **CarBrand**: id, name (único), active, models CarModel[]
 - **CarModel**: id, name, brandId, active — UNIQUE(name, brandId)
 
 ### Enums
 ```
-UserRole: ADMIN | MECHANIC | RECEPTIONIST
+UserRole: ADMIN | MECHANIC | RECEPTIONIST | CERTIFIER
 VehicleStatus: ACTIVE | COMPLETED
-ServiceStatus: PENDING | IN_PROGRESS | COMPLETED | PENDING_CORRECTION
+ServiceStatus: PENDING | IN_PROGRESS | COMPLETED | PAUSED | PENDING_CORRECTION | ACTIVE
 ```
 
 ## Roles y Permisos
@@ -79,10 +101,12 @@ ServiceStatus: PENDING | IN_PROGRESS | COMPLETED | PENDING_CORRECTION
 |-----|----------|--------|-------|
 | **ADMIN** | null (ve todo) | Completo | Todas |
 | **MECHANIC** | sede asignada | Solo sus servicios | `/mis-autos` |
-| **RECEPTIONIST** | sede asignada | Solo registro | `/taller/registrar` |
+| **RECEPTIONIST** | sede asignada | Registro + Ventas | `/taller/registrar`, `/ventas` |
+| **CERTIFIER** | sede asignada | Solo certificar | `/certificar` |
 
 - ADMIN: sin sede fija, ve todas las sedes con selector
-- MECHANIC/RECEPTIONIST: vinculados a 1 sede, filtros automáticos por branchId
+- MECHANIC/RECEPTIONIST/CERTIFIER: vinculados a 1 sede, filtros automáticos por branchId
+- Redirección post-login por rol: ADMIN→`/dashboard`, RECEPTIONIST→`/taller/registrar`, MECHANIC→`/mis-autos`, CERTIFIER→`/certificar`
 
 ## Flujo Principal
 ```
@@ -151,11 +175,14 @@ if (!session) redirect('/login')
 - `createUser(data)` — hashea contraseña, asigna branchId si no es ADMIN
 - `deleteUser(id)` — soft delete (active = false)
 - `getMechanicsByBranch(branchId)` — para selector en asignar servicio
-- `getBranches()` / `createBranch()` / `deleteBranch()` — gestión de sedes
+- `getBranchesCached()` — **cacheada** (tag `"branches"`), usar en page.tsx en lugar de `getBranches()`
+- `getBranches()` / `createBranch()` / `deleteBranch()` — gestión de sedes (mutaciones invalidan caché)
 
 ### clients.ts
-- `getClients(search?)` — agrupa por DNI (no hay modelo Client en BD)
-- `getClientByDNI(dni)` — historial completo con todos sus autos y servicios
+- `getClients(search?)` — unifica Vehicle + Sale + ClientContact por DNI, retorna `ClientSummary[]`
+- `getClientByDNI(dni)` — historial completo: vehículos (services+branch) + ventas directas (items+branch+createdBy) + ClientContact
+- `upsertClientContact(data)` — crea o actualiza un ClientContact (upsert por DNI)
+- `searchClientQuick(q)` — autocomplete para ventas: busca en Vehicle + ClientContact + Sale (prioridad: Contact > Vehicle > Sale)
 
 ### brands.ts
 - `getBrandsForSelect()` — para dropdown Marca → Modelo en formularios
@@ -166,19 +193,27 @@ if (!session) redirect('/login')
 - `getCompany()` / `updateCompany(data)` — upsert único registro de empresa
 
 ### products.ts
-- `getProducts(branchId?)` — listado con filtro de sede
-- `createProduct(data)` / `updateProduct(id, data)` / `deleteProduct(id)` — CRUD
-- `getAllProducts()` — para selector en ventas (todos activos)
+- `getAllProductsCached()` — **cacheada** (tag `"products"`), carga todos los productos activos para inventario
+- `getProducts(branchId?, search?)` — búsqueda con filtros (sin caché)
+- `createProduct(data)` / `updateProduct(id, data)` / `deleteProduct(id)` / `addStock(id, qty)` — invalidan caché
+- `createStockEntry(data)` / `createBulkStockEntries(entries)` — ingreso de stock, invalidan caché
+- `getAllMovements(opts?)` — historial de movimientos con filtros fecha (zona Lima UTC-5), tipo y sede
 
 ### sales.ts
 - `createSale(data)` — registra venta + items, descuenta stock
-- `getSales(branchId?, dateFrom?, dateTo?)` — historial de ventas
+- `getSales(branchId?, dateFrom?, dateTo?)` — historial de ventas con paginación por fecha
+- `getSalesToday(branchId?)` — stats del día (total + count)
 - `getSalesByBranch(branchId?)` — para reportes
 
 ### service-types.ts
-- `getServiceTypes()` — todos los tipos activos
-- `createServiceType(name)` — crear nuevo tipo
-- `toggleServiceType(id, active)` — activar/desactivar
+- `getServiceTypesCached()` — **cacheada** (tag `"service-types"`), usar en page.tsx
+- `getServiceTypes()` — sin caché (para uso interno en actions)
+- `createServiceType(name)` / `updateServiceTypeColor(id, color)` / `toggleServiceType(id, active)` — invalidan caché
+
+### certifications.ts
+- `getCertificationQueue(branchId?)` — servicios COMPLETED para certificar
+- `certifyService(serviceId, certifierId)` — marca servicio como certificado
+- `getCertifiedServices(branchId?, dateFrom?, dateTo?)` — historial de certificaciones
 
 ## Comandos Útiles
 ```bash
@@ -230,6 +265,76 @@ ssh root@212.85.12.168 "cd /var/www/tallerdyc && ./deploy.sh"
 ```
 
 **Estado actual:** BD en VPS pendiente de crear, `.env` de producción pendiente.
+
+## Últimos Cambios (Sesión 2026-03-22 — Caché + Optimizaciones de Performance)
+
+### Caché con `unstable_cache` + `revalidateTag`
+
+#### `lib/actions/products.ts`
+- `getAllProductsCached()` — caché con tag `"products"`. Usado en `/inventario` para cargar todos los productos al inicio sin tocar BD en visitas repetidas.
+- `revalidateTag("products")` agregado en: `createProduct`, `updateProduct`, `deleteProduct`, `addStock`, `createStockEntry`, `createBulkStockEntries`.
+
+#### `lib/actions/users.ts`
+- `getBranchesCached()` — caché con tag `"branches"`. Reemplaza `getBranches()` en todas las páginas del dashboard (10 páginas). Sedes casi nunca cambian → sin queries innecesarias.
+- `revalidateTag("branches")` en: `createBranch`, `updateBranch`, `deleteBranch`.
+
+#### `lib/actions/service-types.ts`
+- `getServiceTypesCached()` — caché con tag `"service-types"`. Reemplaza `getServiceTypes()` en páginas que lo usan.
+- `revalidateTag("service-types")` en: `createServiceType`, `toggleServiceType`, `deleteServiceType`, `updateServiceTypeColor`.
+
+### Inventario — Filtrado local con `useMemo`
+- `getAllProductsCached()` carga todos los productos al inicio de la página (cacheados).
+- `InventoryClient` ya no llama a `getProducts` por cada búsqueda — filtrado 100% local con `useMemo`.
+- Top 20 productos visibles por defecto; filtros activos muestran todos los resultados.
+- Mensaje al pie: "Mostrando 20 de N productos — usa el buscador para filtrar".
+
+### Optimizaciones React (`active-vehicles.tsx`)
+- `useTransition` reemplaza `isLoading` state manual → React gestiona el estado de carga sin bloquear UI.
+- `stats` + `visitTypeCounts`: de 8 `.filter()` separados → **1 solo loop** con `useMemo`.
+- `filteredVehicles`: `useMemo` con dependencias correctas, solo recalcula cuando cambia el filtro.
+- `grouped` + `typeOrderIndex`: `useMemo` compartido, elimina el O(n²) implícito.
+
+### Optimizaciones React (`certification-queue.tsx`)
+- Lógica duplicada `refresh` + `handleBranchChange` → centralizada en `fetchData(branchId)`.
+- `useTransition` para feedback visual durante carga por cambio de sede.
+
+### Optimizaciones React (`admin-dashboard.tsx`)
+- `timeLabel` + `dateLabel`: de recalcularse en cada render → `useMemo([], [])` una sola vez al montar.
+- `useTransition` reemplaza `isLoading` en cambio de sede.
+
+### Fix Timezone — Módulo Movimientos (`lib/actions/products.ts`)
+- `getAllMovements` ahora interpreta `dateFrom`/`dateTo` en zona Lima (UTC-5).
+- `limaToUtcStart(d)` → `d + "T05:00:00Z"` (medianoche Lima = 05:00 UTC).
+- `limaToUtcEnd(d)` → día siguiente a las 04:59:59 UTC.
+- Antes: filtro "17 marzo" mostraba registros de "16 marzo" por diferencia de timezone.
+
+## Últimos Cambios (Sesión 2026-03-15 — Módulo Clientes + Ventas Mejoradas)
+
+### ClientContact — Nuevo modelo Prisma
+- `ClientContact(id, name, dni UNIQUE, phone?, notes?, createdAt, updatedAt)` — clientes registrados manualmente independiente de vehículos/ventas
+- `pnpm exec prisma db push` aplicado correctamente
+- `upsertClientContact(data)` — crea o actualiza por DNI único
+
+### Módulo de Clientes completamente rehecho
+- `getClients(q)` — unifica Vehicle + Sale + ClientContact por DNI con contadores independientes (`totalVehicles`, `totalServices`, `totalSales`, `source`)
+- `getClientByDNI(dni)` — incluye ventas directas (Sale) además de vehículos; prioridad: Contact > Vehicle > Sale para nombre/teléfono
+- `searchClientQuick(q)` — ahora busca en **3 fuentes**: ClientContact (prioridad 1) + Vehicle (prioridad 2) + Sale (prioridad 3). Antes solo buscaba en 2, por lo que clientes registrados solo por ventas no aparecían en el autocomplete
+- `client-list.tsx` rehecho: búsqueda lazy (≥2 chars), stats row (4 columnas), botón "Nuevo Cliente", dialog de creación (nombre+DNI+teléfono+notas), badge "contacto", "Sin resultados" muestra opción de agregar
+- `client-detail.tsx` rehecho: header con `clientNotes`, panel financiero oscuro (servicios taller / compras directas / total), 3 tabs (Vehículos/Servicios/Compras) con contadores. Vehículos muestra visitType badge + totalAmount + año. Compras muestra ítems desglosados + métodos de pago
+
+### Módulo de Ventas (`/ventas`) mejorado
+- Carga solo ventas del día por defecto (fecha Lima con `toLocaleDateString("en-CA", { timeZone: "America/Lima" })`)
+- Filtros de fecha (Desde/Hasta) + búsqueda local (nombre/DNI/número de venta)
+- Click en venta → Dialog con detalle completo (cliente + productos + pago + total + usuario)
+- `getSalesToday(branchId?)` nueva action para stats del día
+
+### new-sale-dialog.tsx — UX cliente mejorado
+- `clientMode` state machine: `"search"` | `"manual"` | `"filled"`
+- `onMouseDown` + `e.preventDefault()` en sugerencias (evita blur-antes-del-click)
+- Badge "Clientes varios" visible bajo el input de búsqueda cuando el campo está vacío
+- Pago simple: monto readonly (div gris mostrando el total) — imposible guardar monto incorrecto
+- Pago mixto: ambos montos requeridos y deben sumar exactamente el total (`payError` explícito)
+- "No encontrado" → banner amarillo + "+ Agregar nuevo" → modo manual con pre-carga de DNI numérico
 
 ## Últimos Cambios (Sesión 2026-03-12 — Revisión Anual + Cobro/Salida)
 
@@ -390,8 +495,12 @@ Info:       #7C3AED (violet-600) — mecánico
 
 ## Notas Técnicas
 
-### 1. Sin modelo Client
-Los clientes no tienen tabla propia. Se derivan de `Vehicle.clientDNI`, `Vehicle.clientName`, `Vehicle.clientPhone`. `getClients()` agrupa por DNI con consulta Prisma.
+### 1. ClientContact — Clientes registrados manualmente
+`ClientContact` es el modelo dedicado para clientes (dni único). Los clientes también se derivan de `Vehicle` y `Sale` cuando no existe un `ClientContact` explícito.
+- `getClients(q)` — unifica las 3 fuentes (Vehicle + Sale + ClientContact) agrupando por DNI
+- `searchClientQuick(q)` — autocomplete: busca en las 3 fuentes, prioridad Contact > Vehicle > Sale
+- `upsertClientContact(data)` — crea/actualiza cliente manual por DNI
+- Módulo `/clientes`: búsqueda lazy (≥2 chars), botón "Nuevo Cliente" con dialog, badge "contacto" para clientes sin vehículo/venta
 
 ### 2. Soft Delete
 Nunca se hace DELETE en BD. Todos los registros tienen `active: Boolean`. Usar siempre:
@@ -405,6 +514,23 @@ Nunca se hace DELETE en BD. Todos los registros tienen `active: Boolean`. Usar s
 
 ### 4. Distribución de precio
 `completeVehicleExit(vehicleId, totalPrice)` distribuye el precio total entre todos los servicios COMPLETED del vehículo de forma equitativa.
+
+### 18. Patrón de Caché (`unstable_cache` + `revalidateTag`)
+Para datos que cambian raramente (productos, sedes, tipos de servicio):
+- En actions: `export const getFooCached = unstable_cache(async () => prisma.foo.findMany(...), ["foo"], { tags: ["foo"] })`
+- En page.tsx: usar `getFooCached()` en lugar de `getFoo()`
+- En mutaciones: llamar `revalidateTag("foo")` después de crear/actualizar/eliminar
+- Para inventario: cargar `initialProducts` en page.tsx y filtrar localmente con `useMemo` en el Client Component (evita Server Actions por cada keystroke)
+
+### 19. `useTransition` vs `isLoading` state manual
+Patrón preferido para operaciones async en Client Components:
+```typescript
+const [isPending, startTransition] = useTransition()
+const loadData = () => startTransition(async () => { ... })
+```
+- `isPending` es gestionado por React automáticamente
+- No bloquea renders urgentes (ej: typing en inputs)
+- Reemplaza el patrón `setIsLoading(true) / finally { setIsLoading(false) }`
 
 ### 5. useSearchParams — NO usar
 Next.js 15 causa "CSR bailout" con `useSearchParams()`. Patrón correcto:
@@ -449,6 +575,33 @@ NUNCA `pnpm dlx prisma` (descarga v7 que es incompatible — rompe la config de 
 ### 13. Soft delete de Service
 Solo el mecánico que creó el servicio puede eliminarlo, y solo si está en `IN_PROGRESS`.
 `deleteService(serviceId, mechanicId)` verifica ambas condiciones antes de proceder.
+
+### 14. Módulo de Ventas (`/ventas`)
+- Carga por defecto solo las ventas del día (filtros `dateFrom` y `dateTo` inicializados con la fecha de Lima)
+- Fecha Lima: `new Date().toLocaleDateString("en-CA", { timeZone: "America/Lima" })` — retorna `YYYY-MM-DD`
+- Búsqueda local (sin request) por nombre, DNI o número de venta con `useMemo`
+- Click en una venta abre un Dialog con detalle completo (cliente, productos, pago, total)
+- Pago: modo simple (monto readonly = total automático) y mixto (2 métodos con validación de suma)
+- `payError` valida: en mixto ambos montos requeridos Y deben sumar exactamente el total
+
+### 15. Módulo de Clientes — `new-sale-dialog.tsx` UX
+- `clientMode`: `"search"` | `"manual"` | `"filled"` — máquina de estados para selección de cliente
+- Búsqueda lazy con debounce 300ms → `searchClientQuick` → dropdown con `onMouseDown` (evita blur antes de click)
+- Badge "Clientes varios": acceso rápido bajo el input de búsqueda (visible cuando campo vacío) → `setClientName("Varios"); setClientMode("filled")`
+- "No encontrado" → banner amarillo con "+ Agregar nuevo" → modo manual con pre-carga del DNI si era numérico
+- Modo manual: form azul con nombre/DNI/teléfono + botón "Confirmar cliente"
+- Modo filled: caja verde con campos editables + botón "Cambiar"
+
+### 16. Tipos de Servicio con Color (`/configuracion/servicios`)
+- `ServiceType.color` (String? hex) — se muestra como borde izquierdo de las cards en `/taller`
+- Paleta de 8 colores predefinidos + picker inline en `service-types-client.tsx`
+- Colores en `/taller`: pasados como `initialServiceTypes` desde `page.tsx` para que funcionen sin abrir ningún dialog
+- Colores en `/mis-autos` (Disponibles): agrupados por `vehicle.visitType` con `VISIT_TYPE_CONFIG` fijo (general=#16a34a, garantia=#dc2626, revision=#0d9488)
+
+### 17. Certificaciones (`/certificar`)
+- Rol CERTIFIER: ve servicios COMPLETED listos para certificar
+- `certifyService(serviceId, certifierId)` — actualiza `certifiedAt` y `certifiedById` en el service
+- Cola separada de historial de certificaciones con filtros por fecha y sede
 
 ## Flujo de Trabajo
 

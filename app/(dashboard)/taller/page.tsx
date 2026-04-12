@@ -2,8 +2,8 @@ import { getServerSession } from "next-auth"
 import { redirect } from "next/navigation"
 import { authOptions } from "@/lib/auth"
 import { getActiveVehicles } from "@/lib/actions/vehicles"
-import { getBranches } from "@/lib/actions/users"
-import { getServiceTypes } from "@/lib/actions/service-types"
+import { getBranchesCached } from "@/lib/actions/users"
+import { getServiceTypesCached } from "@/lib/actions/service-types"
 import { ActiveVehiclesClient } from "@/components/taller/active-vehicles"
 
 export default async function TallerPage() {
@@ -12,8 +12,8 @@ export default async function TallerPage() {
 
   const [vehicles, branches, initialServiceTypes] = await Promise.all([
     getActiveVehicles(),
-    getBranches(),
-    getServiceTypes(),
+    getBranchesCached(),
+    getServiceTypesCached(),
   ])
 
   return (

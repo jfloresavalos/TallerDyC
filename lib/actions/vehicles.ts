@@ -343,6 +343,168 @@ export async function getIncomeReport(branchId?: string, dateFrom?: string, date
   return { vehicles, sales, totalIncome, serviceIncome, salesIncome, totalVehicles, avgPerVehicle }
 }
 
+// ── Reporte de Cobros del Día ─────────────────────────────────────────────────
+
+export async function getCobrosReport(branchId?: string, date?: string) {
+  // Fecha en timezone Lima
+  const limaDate = date ?? new Date().toLocaleDateString("en-CA", { timeZone: "America/Lima" })
+  const dayStart = new Date(limaDate + "T05:00:00Z") // medianoche Lima = 05:00 UTC
+  const dayEnd   = new Date(limaDate + "T05:00:00Z")
+  dayEnd.setDate(dayEnd.getDate() + 1)
+
+  const branchFilter = branchId ? { branchId } : {}
+
+  const [vehicles, sales] = await Promise.all([
+    prisma.vehicle.findMany({
+      where: {
+        ...branchFilter,
+        status: VehicleStatus.COMPLETED,
+        exitTime: { gte: dayStart, lt: dayEnd },
+      },
+      select: {
+        id: true, plate: true, brand: true, model: true, clientName: true,
+        exitTime: true, totalAmount: true, discount: true,
+        paymentMethod1: true, paymentAmount1: true,
+        paymentMethod2: true, paymentAmount2: true,
+        voucherType: true, visitType: true,
+        branch: { select: { name: true } },
+        services: { select: { serviceType: true, price: true } },
+      },
+      orderBy: { exitTime: "desc" },
+    }),
+    prisma.sale.findMany({
+      where: {
+        ...branchFilter,
+        createdAt: { gte: dayStart, lt: dayEnd },
+      },
+      select: {
+        id: true, saleNumber: true, clientName: true, total: true,
+        paymentMethod1: true, paymentAmount1: true,
+        paymentMethod2: true, paymentAmount2: true,
+        createdAt: true,
+        branch: { select: { name: true } },
+        items: { select: { quantity: true, unitPrice: true, product: { select: { name: true } } } },
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+  ])
+
+  // Totales por método de pago
+  const paymentTotals: Record<string, number> = {}
+  const addPayment = (method: string | null | undefined, amount: number | null | undefined) => {
+    if (!method || !amount) return
+    paymentTotals[method] = (paymentTotals[method] ?? 0) + amount
+  }
+
+  for (const v of vehicles) {
+    addPayment(v.paymentMethod1, v.paymentAmount1)
+    addPayment(v.paymentMethod2, v.paymentAmount2)
+  }
+  for (const s of sales) {
+    addPayment(s.paymentMethod1, s.paymentAmount1)
+    addPayment(s.paymentMethod2, s.paymentAmount2)
+  }
+
+  const serviceTotal = vehicles.reduce((sum, v) => sum + (v.totalAmount ?? 0), 0)
+  const salesTotal   = sales.reduce((sum, s) => sum + s.total, 0)
+
+  return {
+    date: limaDate,
+    vehicles,
+    sales,
+    serviceTotal,
+    salesTotal,
+    grandTotal: serviceTotal + salesTotal,
+    paymentTotals,
+    vehicleCount: vehicles.length,
+    saleCount: sales.length,
+  }
+}
+
+// ── Historial por placa ───────────────────────────────────────────────────────
+
+export async function getVehicleHistoryByPlate(plate: string) {
+  const vehicles = await prisma.vehicle.findMany({
+    where: { plate: { equals: plate.toUpperCase() } },
+    include: {
+      branch: { select: { name: true } },
+      services: {
+        include: {
+          mechanic: { select: { name: true } },
+          coMechanic: { select: { name: true } },
+          items: {
+            include: { product: { select: { name: true, unit: true } } },
+          },
+        },
+        orderBy: { startTime: "asc" },
+      },
+    },
+    orderBy: { entryTime: "desc" },
+  })
+  return vehicles
+}
+
+// ── Reporte de productividad de mecánicos ─────────────────────────────────────
+
+export async function getMechanicProductivityReport(branchId?: string, dateFrom?: string, dateTo?: string) {
+  const dateFilter: Record<string, Date> = {}
+  if (dateFrom) dateFilter.gte = new Date(dateFrom + "T05:00:00Z")
+  if (dateTo) {
+    const to = new Date(dateTo + "T05:00:00Z")
+    to.setDate(to.getDate() + 1)
+    dateFilter.lt = to
+  }
+
+  const where: Record<string, unknown> = { status: "COMPLETED" }
+  if (Object.keys(dateFilter).length) where.completionTime = dateFilter
+  if (branchId) where.vehicle = { branchId }
+
+  const services = await prisma.service.findMany({
+    where,
+    select: {
+      id: true, serviceType: true, price: true, discount: true,
+      startTime: true, completionTime: true,
+      mechanic: { select: { id: true, name: true } },
+      coMechanic: { select: { id: true, name: true } },
+      vehicle: { select: { plate: true, brand: true, model: true, visitType: true, branch: { select: { name: true } } } },
+      items: { select: { subtotal: true } },
+    },
+    orderBy: { completionTime: "desc" },
+  })
+
+  // Agrupar por mecánico
+  const byMechanic: Record<string, {
+    id: string; name: string
+    count: number; totalEarned: number; totalMinutes: number
+    serviceTypes: Record<string, number>
+  }> = {}
+
+  const addMechanic = (id: string, name: string, svc: typeof services[0]) => {
+    if (!byMechanic[id]) byMechanic[id] = { id, name, count: 0, totalEarned: 0, totalMinutes: 0, serviceTypes: {} }
+    const m = byMechanic[id]
+    m.count++
+    m.totalEarned += svc.price ?? 0
+    if (svc.startTime && svc.completionTime) {
+      m.totalMinutes += Math.round((svc.completionTime.getTime() - svc.startTime.getTime()) / 60000)
+    }
+    m.serviceTypes[svc.serviceType] = (m.serviceTypes[svc.serviceType] ?? 0) + 1
+  }
+
+  for (const svc of services) {
+    if (svc.mechanic) addMechanic(svc.mechanic.id, svc.mechanic.name, svc)
+    if (svc.coMechanic) addMechanic(svc.coMechanic.id, svc.coMechanic.name, svc)
+  }
+
+  const mechanics = Object.values(byMechanic)
+    .map(m => ({
+      ...m,
+      avgMinutes: m.count > 0 ? Math.round(m.totalMinutes / m.count) : 0,
+    }))
+    .sort((a, b) => b.count - a.count)
+
+  return { mechanics, services, total: services.length }
+}
+
 export async function getDashboardStats(branchId?: string) {
   const branchFilter = branchId ? { branchId } : {}
 

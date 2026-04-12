@@ -41,18 +41,19 @@ export async function createSale(data: {
   clientName?: string
   clientDNI?: string
   clientPhone?: string
+  paymentMethod1: string
+  paymentAmount1?: number
+  paymentMethod2?: string
+  paymentAmount2?: number
   branchId: string
   createdById: string
   items: { productId: string; quantity: number; unitPrice: number }[]
 }) {
-  // Generate sale number
   const count = await prisma.sale.count()
   const saleNumber = `DYC-${String(count + 1).padStart(4, "0")}`
-
   const total = data.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0)
 
   return prisma.$transaction(async (tx) => {
-    // Verify & decrement stock for each item
     for (const item of data.items) {
       const product = await tx.product.findUnique({ where: { id: item.productId } })
       if (!product) throw new Error(`Producto no encontrado: ${item.productId}`)
@@ -72,6 +73,10 @@ export async function createSale(data: {
         clientDNI: data.clientDNI,
         clientPhone: data.clientPhone,
         total,
+        paymentMethod1: data.paymentMethod1,
+        paymentAmount1: data.paymentAmount1,
+        paymentMethod2: data.paymentMethod2 || null,
+        paymentAmount2: data.paymentMethod2 ? data.paymentAmount2 : null,
         branchId: data.branchId,
         createdById: data.createdById,
         items: {

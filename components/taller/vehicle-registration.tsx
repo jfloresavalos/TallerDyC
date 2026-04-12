@@ -402,7 +402,7 @@ export function VehicleRegistrationClient({
               </div>
 
               {/* Placa + Año */}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <label className="text-sm font-semibold text-slate-700">
                     Placa <span className="text-red-500">*</span>

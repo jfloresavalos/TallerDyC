@@ -3,6 +3,13 @@
 import prisma from "@/lib/prisma"
 import { UserRole } from "@prisma/client"
 import { hashSync } from "bcryptjs"
+import { unstable_cache, revalidateTag } from "next/cache"
+
+export const getBranchesCached = unstable_cache(
+  async () => prisma.branch.findMany({ where: { active: true }, orderBy: { code: "asc" } }),
+  ["branches"],
+  { tags: ["branches"] },
+)
 
 export async function getUsers() {
   return prisma.user.findMany({
@@ -82,7 +89,9 @@ export async function createBranch(data: {
   address?: string
   phone?: string
 }) {
-  return prisma.branch.create({ data })
+  const result = await prisma.branch.create({ data })
+  revalidateTag("branches")
+  return result
 }
 
 export async function updateBranch(id: string, data: {
@@ -90,7 +99,9 @@ export async function updateBranch(id: string, data: {
   address?: string
   phone?: string
 }) {
-  return prisma.branch.update({ where: { id }, data })
+  const result = await prisma.branch.update({ where: { id }, data })
+  revalidateTag("branches")
+  return result
 }
 
 export async function deleteBranch(id: string) {
@@ -103,5 +114,7 @@ export async function deleteBranch(id: string) {
     throw new Error("No se puede eliminar una sede con usuarios o vehículos activos")
   }
 
-  return prisma.branch.update({ where: { id }, data: { active: false } })
+  const result = await prisma.branch.update({ where: { id }, data: { active: false } })
+  revalidateTag("branches")
+  return result
 }

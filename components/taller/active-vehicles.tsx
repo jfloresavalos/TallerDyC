@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { getActiveVehicles, hasServices } from "@/lib/actions/vehicles"
@@ -73,7 +73,7 @@ const VISIT_TYPE_CONFIG: Record<string, { label: string; color: string; textColo
 export function ActiveVehiclesClient({ initialVehicles, branches, initialServiceTypes }: ActiveVehiclesClientProps) {
   const [vehicles, setVehicles] = useState(initialVehicles)
   const [selectedBranch, setSelectedBranch] = useState<string | "all">("all")
-  const [isLoading, setIsLoading] = useState(false)
+  const [isPending, startTransition] = useTransition()
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all")
   const [visitTypeFilter, setVisitTypeFilter] = useState<VisitTypeFilter>("all")
@@ -92,22 +92,20 @@ export function ActiveVehiclesClient({ initialVehicles, branches, initialService
   const [reassignLoading, setReassignLoading] = useState(false)
   const [reassignMechanics, setReassignMechanics] = useState<PrismaUser[]>([])
 
-  const loadVehicles = async (branchId?: string | "all") => {
-    setIsLoading(true)
-    try {
+  const loadVehicles = (branchId?: string | "all") => {
+    startTransition(async () => {
       const updated = await getActiveVehicles(branchId === "all" ? undefined : branchId) as VehicleWithServices[]
       setVehicles(updated)
-      // Update detail if open
       if (detailVehicle) {
         const fresh = updated.find(v => v.id === detailVehicle.id)
         if (fresh) setDetailVehicle(fresh)
       }
-    } finally { setIsLoading(false) }
+    })
   }
 
-  const handleBranchChange = async (branchId: string | "all") => {
+  const handleBranchChange = (branchId: string | "all") => {
     setSelectedBranch(branchId)
-    await loadVehicles(branchId)
+    loadVehicles(branchId)
   }
 
   const handleOpenReassign = async (service: ServiceWithMechanic, branchId: string) => {
@@ -148,54 +146,54 @@ export function ActiveVehiclesClient({ initialVehicles, branches, initialService
   const formatDate = (date: Date | string) =>
     new Date(date).toLocaleDateString("es-PE", { day: "2-digit", month: "short", timeZone: "America/Lima" })
 
-  const stats = {
-    total:      vehicles.length,
-    unassigned: vehicles.filter(v => getVehicleStatus(v) === "unassigned").length,
-    active:     vehicles.filter(v => getVehicleStatus(v) === "active").length,
-    completed:  vehicles.filter(v => getVehicleStatus(v) === "completed").length,
-  }
-
-  const visitTypeCounts = {
-    general:  vehicles.filter(v => (v.visitType ?? "general") === "general").length,
-    garantia: vehicles.filter(v => v.visitType === "garantia").length,
-    revision: vehicles.filter(v => v.visitType === "revision").length,
-    venta:    vehicles.filter(v => v.visitType === "venta").length,
-  }
-
-  const filteredVehicles = vehicles.filter(v => {
-    if (statusFilter !== "all" && getVehicleStatus(v) !== statusFilter) return false
-    if (visitTypeFilter !== "all" && (v.visitType ?? "general") !== visitTypeFilter) return false
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase()
-      return (
-        v.plate.toLowerCase().includes(q) ||
-        v.clientName.toLowerCase().includes(q) ||
-        v.brand.toLowerCase().includes(q) ||
-        v.model.toLowerCase().includes(q)
-      )
+  // Un solo loop para stats + visitTypeCounts (en lugar de 8 filters separados)
+  const { stats, visitTypeCounts } = useMemo(() => {
+    const s = { total: vehicles.length, unassigned: 0, active: 0, completed: 0 }
+    const vt = { general: 0, garantia: 0, revision: 0, venta: 0 }
+    for (const v of vehicles) {
+      const status = getVehicleStatus(v)
+      if (status === "unassigned") s.unassigned++
+      else if (status === "active") s.active++
+      else if (status === "completed") s.completed++
+      const type = (v.visitType ?? "general") as keyof typeof vt
+      if (type in vt) vt[type]++
     }
-    return true
-  })
+    return { stats: s, visitTypeCounts: vt }
+  }, [vehicles])
 
-  const sortedVehicles = [...filteredVehicles].sort((a, b) => (a.arrivalOrder ?? 0) - (b.arrivalOrder ?? 0))
+  const filteredVehicles = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+    return vehicles.filter(v => {
+      if (statusFilter !== "all" && getVehicleStatus(v) !== statusFilter) return false
+      if (visitTypeFilter !== "all" && (v.visitType ?? "general") !== visitTypeFilter) return false
+      if (q) {
+        return (
+          v.plate.toLowerCase().includes(q) ||
+          v.clientName.toLowerCase().includes(q) ||
+          v.brand.toLowerCase().includes(q) ||
+          v.model.toLowerCase().includes(q)
+        )
+      }
+      return true
+    })
+  }, [vehicles, statusFilter, visitTypeFilter, searchQuery])
 
-  const VISIT_ORDER = ["general", "garantia", "revision", "venta"]
-  const grouped = VISIT_ORDER.map(type => ({
-    type,
-    vehicles: sortedVehicles.filter(v => (v.visitType ?? "general") === type),
-  })).filter(g => g.vehicles.length > 0)
-
-  // Índice de orden dentro de cada tipo (independiente por tipo)
-  // venta no tiene índice
-  const typeOrderIndex = new Map<string, number>()
-  for (const type of ["general", "garantia", "revision"]) {
-    let idx = 1
-    for (const v of sortedVehicles) {
-      if ((v.visitType ?? "general") === type) {
-        typeOrderIndex.set(v.id, idx++)
+  const { grouped, typeOrderIndex } = useMemo(() => {
+    const sorted = [...filteredVehicles].sort((a, b) => (a.arrivalOrder ?? 0) - (b.arrivalOrder ?? 0))
+    const VISIT_ORDER = ["general", "garantia", "revision", "venta"]
+    const grp = VISIT_ORDER.map(type => ({
+      type,
+      vehicles: sorted.filter(v => (v.visitType ?? "general") === type),
+    })).filter(g => g.vehicles.length > 0)
+    const idx = new Map<string, number>()
+    for (const type of ["general", "garantia", "revision"]) {
+      let i = 1
+      for (const v of sorted) {
+        if ((v.visitType ?? "general") === type) idx.set(v.id, i++)
       }
     }
-  }
+    return { grouped: grp, typeOrderIndex: idx }
+  }, [filteredVehicles])
 
   // ── Card ultra-compacta (clic → dialog) ─────────────────────────────────
   const renderCard = (vehicle: VehicleWithServices) => {
@@ -258,16 +256,16 @@ export function ActiveVehiclesClient({ initialVehicles, branches, initialService
         <BranchSelector branches={branches} selected={selectedBranch} onChange={handleBranchChange} />
         <button
           onClick={() => loadVehicles(selectedBranch)}
-          disabled={isLoading}
+          disabled={isPending}
           className="p-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 cursor-pointer transition-colors shrink-0"
           aria-label="Actualizar"
         >
-          <RefreshCw className={`w-4 h-4 text-slate-600 ${isLoading ? "animate-spin" : ""}`} />
+          <RefreshCw className={`w-4 h-4 text-slate-600 ${isPending ? "animate-spin" : ""}`} />
         </button>
       </div>
 
       {/* Stats — filtro de estado */}
-      <div className="grid grid-cols-4 gap-1.5">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
         {([
           { key: "all",        label: "Total",       value: stats.total,      active: "bg-slate-800 text-white",  inactive: "bg-slate-100 text-slate-700" },
           { key: "unassigned", label: "Sin asignar", value: stats.unassigned, active: "bg-orange-500 text-white", inactive: "bg-orange-50 text-orange-700" },
@@ -280,7 +278,7 @@ export function ActiveVehiclesClient({ initialVehicles, branches, initialService
             className={`rounded-xl p-2 text-center cursor-pointer transition-all ${statusFilter === s.key ? s.active : s.inactive} hover:opacity-80`}
           >
             <p className="text-xl font-black leading-none tabular-nums">{s.value}</p>
-            <p className="text-[9px] font-semibold mt-0.5 leading-tight">{s.label}</p>
+            <p className="text-[10px] sm:text-[9px] font-semibold mt-0.5 leading-tight">{s.label}</p>
           </button>
         ))}
       </div>
@@ -331,7 +329,7 @@ export function ActiveVehiclesClient({ initialVehicles, branches, initialService
       {/* Contador */}
       {(searchQuery || statusFilter !== "all" || visitTypeFilter !== "all") && (
         <div className="flex items-center justify-between">
-          <p className="text-xs text-slate-500">{sortedVehicles.length} vehículo{sortedVehicles.length !== 1 ? "s" : ""}</p>
+          <p className="text-xs text-slate-500">{filteredVehicles.length} vehículo{filteredVehicles.length !== 1 ? "s" : ""}</p>
           <button onClick={() => { setSearchQuery(""); setStatusFilter("all"); setVisitTypeFilter("all") }} className="text-xs text-blue-600 cursor-pointer font-medium">
             Limpiar filtros
           </button>
@@ -347,7 +345,7 @@ export function ActiveVehiclesClient({ initialVehicles, branches, initialService
           <h3 className="font-semibold text-slate-700 mb-1">El taller está vacío</h3>
           <p className="text-sm text-slate-500">No hay vehículos activos</p>
         </div>
-      ) : sortedVehicles.length === 0 ? (
+      ) : filteredVehicles.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-14 text-center">
           <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mb-3">
             <Search className="w-6 h-6 text-slate-400" />
@@ -359,8 +357,8 @@ export function ActiveVehiclesClient({ initialVehicles, branches, initialService
         <div className="space-y-3">
           {visitTypeFilter !== "all"
             ? (
-              <div className="grid grid-cols-2 gap-1.5">
-                {sortedVehicles.map(v => renderCard(v))}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                {filteredVehicles.map(v => renderCard(v))}
               </div>
             )
             : grouped.map(group => {
@@ -376,7 +374,7 @@ export function ActiveVehiclesClient({ initialVehicles, branches, initialService
                       {cfg.label} <span className="font-normal opacity-60">({group.vehicles.length})</span>
                     </p>
                   </div>
-                  <div className="grid grid-cols-2 gap-1.5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                     {group.vehicles.map(v => renderCard(v))}
                   </div>
                 </div>
@@ -389,6 +387,7 @@ export function ActiveVehiclesClient({ initialVehicles, branches, initialService
       {/* ── Dialog: Detalle del vehículo ── */}
       <Dialog open={!!dv} onOpenChange={o => !o && setDetailVehicle(null)}>
         <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-sm rounded-2xl p-0 overflow-hidden max-h-[85vh] flex flex-col">
+          <DialogTitle className="sr-only">Detalle del vehículo</DialogTitle>
           {dv && dvSC && dvVtConfig && (
             <>
               {/* Header compacto */}

@@ -24,7 +24,9 @@ const roleConfig: Record<string, { label: string; badge: string; icon: typeof Sh
   ADMIN: { label: "Administrador", badge: "bg-blue-100 text-blue-800", icon: Shield },
   MECHANIC: { label: "Mecánico", badge: "bg-green-100 text-green-800", icon: Wrench },
   RECEPTIONIST: { label: "Recepcionista", badge: "bg-purple-100 text-purple-800", icon: UserCheck },
+  CERTIFIER: { label: "Certificador", badge: "bg-amber-100 text-amber-800", icon: Shield },
 }
+const DEFAULT_ROLE_CONFIG = { label: "Desconocido", badge: "bg-slate-100 text-slate-800", icon: Shield }
 
 export function UserManagementClient({ initialUsers, branches, currentUserId }: UserManagementClientProps) {
   const [users, setUsers] = useState(initialUsers)
@@ -196,7 +198,7 @@ export function UserManagementClient({ initialUsers, branches, currentUserId }: 
             </thead>
             <tbody className="divide-y divide-slate-100">
               {users.map((user) => {
-                const role = roleConfig[user.role]
+                const role = roleConfig[user.role] ?? DEFAULT_ROLE_CONFIG
                 const RoleIcon = role.icon
                 return (
                   <tr key={user.id} className="hover:bg-slate-50 transition-colors">

@@ -30,7 +30,7 @@ export function ProductFormDialog({ open, onOpenChange, product, categories, bra
   const [form, setForm] = useState({
     name: "", code: "", description: "", unit: "unidad",
     price: "", cost: "", stock: "", minStock: "5",
-    category: "", branchId: "none",
+    category: "", brand: "", branchId: "none",
   })
 
   useEffect(() => {
@@ -45,10 +45,11 @@ export function ProductFormDialog({ open, onOpenChange, product, categories, bra
         stock: String(product.stock),
         minStock: String(product.minStock),
         category: product.category ?? "",
+        brand: product.brand ?? "",
         branchId: product.branchId ?? "none",
       })
     } else {
-      setForm({ name: "", code: "", description: "", unit: "unidad", price: "", cost: "", stock: "0", minStock: "5", category: "", branchId: "none" })
+      setForm({ name: "", code: "", description: "", unit: "unidad", price: "", cost: "", stock: "0", minStock: "5", category: "", brand: "", branchId: "none" })
     }
     setAddStockMode(false)
     setStockToAdd("")
@@ -70,6 +71,7 @@ export function ProductFormDialog({ open, onOpenChange, product, categories, bra
         stock: parseInt(form.stock) || 0,
         minStock: parseInt(form.minStock) || 5,
         category: form.category || undefined,
+        brand: form.brand || undefined,
         branchId: form.branchId !== "none" ? form.branchId : undefined,
       }
       if (isEdit && product) {
@@ -149,18 +151,12 @@ export function ProductFormDialog({ open, onOpenChange, product, categories, bra
               <label className="text-sm font-semibold text-slate-700">Nombre *</label>
               <Input value={form.name} onChange={e => set("name", e.target.value)} placeholder="ej. Aceite 10W-40" className="h-12 rounded-xl" />
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <label className="text-sm font-semibold text-slate-700">Código</label>
-                <Input value={form.code} onChange={e => set("code", e.target.value)} placeholder="ej. ACT-001" className="h-12 rounded-xl" />
-              </div>
-              <div className="space-y-1">
-                <label className="text-sm font-semibold text-slate-700">Unidad</label>
-                <Select value={form.unit} onValueChange={v => set("unit", v)}>
-                  <SelectTrigger className="h-12 rounded-xl"><SelectValue /></SelectTrigger>
-                  <SelectContent>{UNITS.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
+            <div className="space-y-1">
+              <label className="text-sm font-semibold text-slate-700">Unidad</label>
+              <Select value={form.unit} onValueChange={v => set("unit", v)}>
+                <SelectTrigger className="h-12 rounded-xl"><SelectValue /></SelectTrigger>
+                <SelectContent>{UNITS.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent>
+              </Select>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
@@ -188,10 +184,16 @@ export function ProductFormDialog({ open, onOpenChange, product, categories, bra
                 <Input type="number" inputMode="numeric" min="0" value={form.minStock} onChange={e => set("minStock", e.target.value)} className="h-12 rounded-xl" />
               </div>
             </div>
-            <div className="space-y-1">
-              <label className="text-sm font-semibold text-slate-700">Categoría</label>
-              <Input value={form.category} onChange={e => set("category", e.target.value)} placeholder="ej. Lubricantes, Filtros..." list="categories-list" className="h-12 rounded-xl" />
-              <datalist id="categories-list">{categories.map(c => <option key={c} value={c} />)}</datalist>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-sm font-semibold text-slate-700">Categoría</label>
+                <Input value={form.category} onChange={e => set("category", e.target.value)} placeholder="ej. Lubricantes, Filtros..." list="categories-list" className="h-12 rounded-xl" />
+                <datalist id="categories-list">{categories.map(c => <option key={c} value={c} />)}</datalist>
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm font-semibold text-slate-700">Marca</label>
+                <Input value={form.brand} onChange={e => set("brand", e.target.value)} placeholder="ej. BOSCH, CASTROL..." className="h-12 rounded-xl" />
+              </div>
             </div>
             {branches.length > 1 && (
               <div className="space-y-1">

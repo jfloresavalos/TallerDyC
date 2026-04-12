@@ -339,7 +339,7 @@ export function CheckoutDialog({ vehicleId, vehicleLabel, onClose, onSuccess }: 
                                   {svc.items.map(it => (
                                     <div key={it.id} className="bg-slate-50 rounded-lg px-2.5 py-2 space-y-1.5">
                                       <p className="text-xs font-semibold text-slate-700">{it.productName} <span className="font-normal text-slate-400">({it.unit})</span></p>
-                                      <div className="grid grid-cols-3 gap-1.5">
+                                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
                                         <div>
                                           <label className="text-[10px] text-slate-400">Cant.</label>
                                           <Input value={it.quantity} onChange={e => updateItem(svc.id, it.id, "quantity", e.target.value)}
@@ -497,7 +497,7 @@ export function CheckoutDialog({ vehicleId, vehicleLabel, onClose, onSuccess }: 
                 <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Forma de pago</h3>
                 <div className="space-y-3">
                   {/* Pago 1 */}
-                  <div className="flex gap-2">
+                  <div className="flex flex-col sm:flex-row gap-2">
                     <div className="flex gap-1.5 flex-1">
                       {PAYMENT_METHODS.map(m => (
                         <button key={m.value} type="button" onClick={() => setPaymentMethod1(m.value)}
@@ -510,7 +510,7 @@ export function CheckoutDialog({ vehicleId, vehicleLabel, onClose, onSuccess }: 
                         </button>
                       ))}
                     </div>
-                    <div className="relative w-28">
+                    <div className="relative w-full sm:w-28">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">S/</span>
                       <Input value={paymentAmount1} onChange={e => setPaymentAmount1(e.target.value)}
                         type="number" min="0" step="0.50" placeholder={grandTotal.toFixed(2)}
@@ -520,7 +520,7 @@ export function CheckoutDialog({ vehicleId, vehicleLabel, onClose, onSuccess }: 
 
                   {/* Toggle pago mixto */}
                   <button type="button" onClick={() => { setMixedPayment(p => !p); setPaymentAmount2("") }}
-                    className={`w-full h-8 rounded-xl border text-xs font-medium flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
+                    className={`w-full h-10 rounded-xl border text-xs font-medium flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
                       mixedPayment ? "border-blue-200 bg-blue-50 text-blue-700" : "border-dashed border-slate-300 text-slate-500 hover:bg-slate-50"
                     }`}>
                     <ArrowLeftRight className="w-3.5 h-3.5" />

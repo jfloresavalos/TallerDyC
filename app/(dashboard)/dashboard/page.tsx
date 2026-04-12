@@ -2,7 +2,7 @@ import { getServerSession } from "next-auth"
 import { redirect } from "next/navigation"
 import { authOptions } from "@/lib/auth"
 import { getDashboardStats } from "@/lib/actions/vehicles"
-import { getBranches } from "@/lib/actions/users"
+import { getBranchesCached } from "@/lib/actions/users"
 import { AdminDashboardClient } from "@/components/taller/admin-dashboard"
 
 export default async function DashboardPage() {
@@ -11,7 +11,7 @@ export default async function DashboardPage() {
 
   const [stats, branches] = await Promise.all([
     getDashboardStats(),
-    getBranches(),
+    getBranchesCached(),
   ])
 
   return (

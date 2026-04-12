@@ -2,7 +2,7 @@ import { getServerSession } from "next-auth"
 import { redirect } from "next/navigation"
 import { authOptions } from "@/lib/auth"
 import { getServicesByMechanic } from "@/lib/actions/services"
-import { getServiceTypes } from "@/lib/actions/service-types"
+import { getServiceTypesCached } from "@/lib/actions/service-types"
 import { MyAssignedVehiclesClient } from "@/components/taller/my-assigned-vehicles"
 
 export default async function MisAutosPage() {
@@ -11,7 +11,7 @@ export default async function MisAutosPage() {
 
   const [services, serviceTypes] = await Promise.all([
     getServicesByMechanic(session.user.id, "ACTIVE"),
-    getServiceTypes(),
+    getServiceTypesCached(),
   ])
 
   return (

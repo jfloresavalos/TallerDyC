@@ -3,7 +3,7 @@ import { redirect } from "next/navigation"
 import { authOptions } from "@/lib/auth"
 import { getDashboardStats } from "@/lib/actions/vehicles"
 import Link from "next/link"
-import { Wrench, DollarSign, ArrowRight, TrendingUp, BarChart3 } from "lucide-react"
+import { Wrench, DollarSign, ArrowRight, TrendingUp, BarChart3, CreditCard, Search, Users } from "lucide-react"
 
 export default async function ReportesPage() {
   const session = await getServerSession(authOptions)
@@ -76,6 +76,57 @@ export default async function ReportesPage() {
               </div>
             </div>
             <ArrowRight className="w-5 h-5 text-slate-400 group-hover:text-green-600 transition-colors shrink-0" />
+          </div>
+        </Link>
+        <Link href="/reportes/cobros">
+          <div className="bg-white rounded-2xl border-2 border-slate-100 p-5 flex items-center gap-4 cursor-pointer hover:border-amber-200 hover:bg-amber-50 transition-colors group">
+            <div className="w-14 h-14 rounded-2xl bg-amber-500 flex items-center justify-center shrink-0">
+              <CreditCard className="w-7 h-7 text-white" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h3 className="font-bold text-slate-900 text-base">Cobros del Día</h3>
+              <p className="text-sm text-slate-500 mt-0.5">Total cobrado por método de pago: efectivo, yape, tarjeta</p>
+              <div className="flex flex-wrap gap-2 mt-2">
+                <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">Por método de pago</span>
+                <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">Servicios + ventas</span>
+              </div>
+            </div>
+            <ArrowRight className="w-5 h-5 text-slate-400 group-hover:text-amber-600 transition-colors shrink-0" />
+          </div>
+        </Link>
+
+        <Link href="/reportes/placa">
+          <div className="bg-white rounded-2xl border-2 border-slate-100 p-5 flex items-center gap-4 cursor-pointer hover:border-purple-200 hover:bg-purple-50 transition-colors group">
+            <div className="w-14 h-14 rounded-2xl bg-purple-600 flex items-center justify-center shrink-0">
+              <Search className="w-7 h-7 text-white" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h3 className="font-bold text-slate-900 text-base">Historial por Placa</h3>
+              <p className="text-sm text-slate-500 mt-0.5">Todas las visitas de un vehículo con línea de tiempo completa</p>
+              <div className="flex flex-wrap gap-2 mt-2">
+                <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-medium">Búsqueda por placa</span>
+                <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-medium">Línea de tiempo</span>
+              </div>
+            </div>
+            <ArrowRight className="w-5 h-5 text-slate-400 group-hover:text-purple-600 transition-colors shrink-0" />
+          </div>
+        </Link>
+
+        <Link href="/reportes/mecanicos">
+          <div className="bg-white rounded-2xl border-2 border-slate-100 p-5 flex items-center gap-4 cursor-pointer hover:border-slate-300 hover:bg-slate-50 transition-colors group">
+            <div className="w-14 h-14 rounded-2xl bg-slate-800 flex items-center justify-center shrink-0">
+              <Users className="w-7 h-7 text-white" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h3 className="font-bold text-slate-900 text-base">Productividad Mecánicos</h3>
+              <p className="text-sm text-slate-500 mt-0.5">Ranking por servicios realizados, tiempo promedio y facturado</p>
+              <div className="flex flex-wrap gap-2 mt-2">
+                <span className="text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full font-medium">Ranking</span>
+                <span className="text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full font-medium">Tiempo promedio</span>
+                <span className="text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full font-medium">Por período</span>
+              </div>
+            </div>
+            <ArrowRight className="w-5 h-5 text-slate-400 group-hover:text-slate-600 transition-colors shrink-0" />
           </div>
         </Link>
       </div>

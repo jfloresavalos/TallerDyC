@@ -1,8 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo, useTransition } from "react"
 import { getDashboardStats } from "@/lib/actions/vehicles"
 import { BranchSelector } from "@/components/taller/branch-selector"
+import { toast } from "sonner"
 import { Car, CheckCircle, DollarSign, AlertCircle, TrendingUp, ArrowRight, Wrench, Plus } from "lucide-react"
 import Link from "next/link"
 import type { Branch } from "@prisma/client"
@@ -22,21 +23,27 @@ interface AdminDashboardClientProps {
 export function AdminDashboardClient({ initialStats, branches }: AdminDashboardClientProps) {
   const [stats, setStats] = useState(initialStats)
   const [selectedBranch, setSelectedBranch] = useState<string | "all">("all")
-  const [isLoading, setIsLoading] = useState(false)
+  const [isPending, startTransition] = useTransition()
 
-  const now = new Date()
-  const timeLabel = now.toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit", timeZone: "America/Lima" })
-  const dateLabel = now.toLocaleDateString("es-PE", { weekday: "long", day: "numeric", month: "long", timeZone: "America/Lima" })
-
-  const handleBranchChange = async (branchId: string | "all") => {
-    setSelectedBranch(branchId)
-    setIsLoading(true)
-    try {
-      const newStats = await getDashboardStats(branchId === "all" ? undefined : branchId)
-      setStats(newStats)
-    } finally {
-      setIsLoading(false)
+  // Se calcula una sola vez al montar — no recalcula en cada re-render
+  const { timeLabel, dateLabel } = useMemo(() => {
+    const now = new Date()
+    return {
+      timeLabel: now.toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit", timeZone: "America/Lima" }),
+      dateLabel: now.toLocaleDateString("es-PE", { weekday: "long", day: "numeric", month: "long", timeZone: "America/Lima" }),
     }
+  }, [])
+
+  const handleBranchChange = (branchId: string | "all") => {
+    setSelectedBranch(branchId)
+    startTransition(async () => {
+      try {
+        const newStats = await getDashboardStats(branchId === "all" ? undefined : branchId)
+        setStats(newStats)
+      } catch {
+        toast.error("Error al cargar estadísticas")
+      }
+    })
   }
 
   return (
@@ -54,7 +61,7 @@ export function AdminDashboardClient({ initialStats, branches }: AdminDashboardC
       </div>
 
       {/* ── KPI Cards 2×2 ── */}
-      <div className={`grid grid-cols-2 gap-3 transition-opacity duration-200 ${isLoading ? "opacity-40 pointer-events-none" : ""}`}>
+      <div className={`grid grid-cols-2 gap-3 transition-opacity duration-200 ${isPending ? "opacity-40 pointer-events-none" : ""}`}>
 
         {/* Autos activos */}
         <Link href="/taller" className="block group">

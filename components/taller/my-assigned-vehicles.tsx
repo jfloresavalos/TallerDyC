@@ -1,7 +1,6 @@
 "use client"
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useState, useMemo } from "react"
 import { toast } from "sonner"
 import {
   getServicesByMechanic,
@@ -142,8 +141,6 @@ export function MyAssignedVehiclesClient({
   const [coMechanicId, setCoMechanicId] = useState("")
   const [availableMechanics, setAvailableMechanics] = useState<{ id: string; name: string }[]>([])
 
-  const router = useRouter()
-
   // ¿Tengo un servicio IN_PROGRESS? (PAUSED no bloquea tomar otro auto)
   const hasActiveVehicle = services.some(s => s.status === "IN_PROGRESS")
 
@@ -193,7 +190,6 @@ export function MyAssignedVehiclesClient({
     setCompletionExtraService("")
     setSelectedProduct(null)
     setProductSearch("")
-    router.refresh()
   }
 
   const handleAddExtraService = async () => {
@@ -207,7 +203,6 @@ export function MyAssignedVehiclesClient({
       toast.success("Servicio adicional agregado")
       handleCloseCompletion()
       await refresh()
-      router.refresh()
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Error al agregar servicio"
       toast.error(msg)
@@ -254,7 +249,6 @@ export function MyAssignedVehiclesClient({
       setHandoffToMechanicId("")
       setHandoffNote("")
       await refresh()
-      router.refresh()
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Error al transferir"
       toast.error(msg)
@@ -270,7 +264,6 @@ export function MyAssignedVehiclesClient({
       setAddServiceId(null)
       setNewServiceType("")
       await refresh()
-      router.refresh()
     } catch { toast.error("Error al agregar servicio") } finally { setIsLoading(false) }
   }
 
@@ -296,7 +289,6 @@ export function MyAssignedVehiclesClient({
       setDeleteServiceId(null)
       setDeleteReason("")
       await refresh()
-      router.refresh()
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Error al eliminar"
       toast.error(msg)
@@ -317,7 +309,6 @@ export function MyAssignedVehiclesClient({
       setPauseServiceId(null)
       setPauseReason("")
       await refresh()
-      router.refresh()
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Error al pausar"
       toast.error(msg)
@@ -330,7 +321,6 @@ export function MyAssignedVehiclesClient({
       await resumeService(serviceId, mechanicId)
       toast.success("Servicio reanudado")
       await refresh()
-      router.refresh()
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Error al reanudar"
       toast.error(msg)
@@ -341,13 +331,11 @@ export function MyAssignedVehiclesClient({
   const handleLoadUnassigned = async () => {
     setUnassignedLoading(true)
     try {
-      const [vehicles, types, mechanics] = await Promise.all([
+      const [vehicles, mechanics] = await Promise.all([
         getUnassignedVehicles(mechanicBranchId ?? undefined) as Promise<UnassignedVehicle[]>,
-        getServiceTypes() as Promise<ServiceType[]>,
         getMechanicsByBranch(mechanicBranchId ?? undefined),
       ])
       setUnassigned(vehicles)
-      setLocalServiceTypes(types)
       // Excluir al propio mecánico de la lista de co-mecánicos
       setAvailableMechanics(mechanics.filter(m => m.id !== mechanicId))
     } finally { setUnassignedLoading(false) }
@@ -381,7 +369,6 @@ export function MyAssignedVehiclesClient({
         }
         toast.success("Auto asignado. Aparece en Mis Trabajos.")
       }
-      toast.success("Auto asignado. Aparece en Mis Trabajos.")
       setConfirmVehicle(null)
       setTakeServiceType("")
       setCoMechanicId("")
@@ -393,19 +380,18 @@ export function MyAssignedVehiclesClient({
       ])
       setServices(updatedServices as ServiceWithRelations[])
       setUnassigned(updatedVehicles as UnassignedVehicle[])
-      router.refresh()
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Error al tomar el auto"
       toast.error(msg)
     } finally { setTakeLoading(false) }
   }
 
-  const filteredProducts = products.filter(p =>
+  const filteredProducts = useMemo(() => products.filter(p =>
     p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
     (p.code ?? "").toLowerCase().includes(productSearch.toLowerCase())
-  ).slice(0, 20)
+  ).slice(0, 20), [products, productSearch])
 
-  const filteredUnassigned = unassigned.filter(v => {
+  const filteredUnassigned = useMemo(() => unassigned.filter(v => {
     if (!unassignedSearch.trim()) return true
     const q = unassignedSearch.toLowerCase()
     return (
@@ -415,7 +401,16 @@ export function MyAssignedVehiclesClient({
       v.brand.toLowerCase().includes(q) ||
       v.model.toLowerCase().includes(q)
     )
-  })
+  }), [unassigned, unassignedSearch])
+
+  const groupedByVehicle = useMemo(() => Object.values(
+    services.reduce((groups, svc) => {
+      const vid = svc.vehicle.id
+      if (!groups[vid]) groups[vid] = { vehicle: svc.vehicle, services: [] }
+      groups[vid].services.push(svc)
+      return groups
+    }, {} as Record<string, { vehicle: ServiceWithRelations["vehicle"]; services: ServiceWithRelations[] }>)
+  ), [services])
 
   const serviceToComplete = services.find(s => s.id === confirmId)
   const serviceForNote = services.find(s => s.id === noteId)
@@ -429,7 +424,7 @@ export function MyAssignedVehiclesClient({
       <div className="flex gap-1 bg-slate-100 p-1 rounded-xl">
         <button
           onClick={() => handleTabChange("mine")}
-          className={`flex-1 h-10 rounded-lg text-sm font-semibold transition-all cursor-pointer ${
+          className={`flex-1 h-11 rounded-lg text-sm font-semibold transition-all cursor-pointer ${
             activeTab === "mine" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
           }`}
         >
@@ -437,7 +432,7 @@ export function MyAssignedVehiclesClient({
         </button>
         <button
           onClick={() => handleTabChange("available")}
-          className={`flex-1 h-10 rounded-lg text-sm font-semibold transition-all cursor-pointer ${
+          className={`flex-1 h-11 rounded-lg text-sm font-semibold transition-all cursor-pointer ${
             activeTab === "available" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
           }`}
         >
@@ -463,14 +458,7 @@ export function MyAssignedVehiclesClient({
           ) : (
             <div className="space-y-3">
               {/* Agrupar servicios por vehículo */}
-              {Object.values(
-                services.reduce((groups, svc) => {
-                  const vid = svc.vehicle.id
-                  if (!groups[vid]) groups[vid] = { vehicle: svc.vehicle, services: [] }
-                  groups[vid].services.push(svc)
-                  return groups
-                }, {} as Record<string, { vehicle: ServiceWithRelations["vehicle"]; services: ServiceWithRelations[] }>)
-              ).map(({ vehicle, services: vehicleServices }) => {
+              {groupedByVehicle.map(({ vehicle, services: vehicleServices }) => {
                 const allDone = vehicleServices.every(s => s.status === "COMPLETED")
                 const hasInProgress = vehicleServices.some(s => s.status === "IN_PROGRESS")
 
@@ -642,25 +630,25 @@ export function MyAssignedVehiclesClient({
                                     <div className="flex gap-1.5">
                                       <Button variant="outline" size="sm"
                                         onClick={() => { setNoteId(service.id); setNoteText(service.description || "") }}
-                                        className="flex-1 h-8 text-xs rounded-lg cursor-pointer">
+                                        className="flex-1 h-10 text-xs rounded-lg cursor-pointer">
                                         Nota
                                       </Button>
                                       {canPause && (
                                         <Button variant="outline" size="sm"
                                           onClick={() => { setPauseServiceId(service.id); setPauseReason("") }}
-                                          className="flex-1 h-8 text-xs rounded-lg cursor-pointer text-orange-600 border-orange-200 hover:bg-orange-50">
-                                          <PauseCircle className="w-3 h-3 mr-1" />Pausar
+                                          className="flex-1 h-10 text-xs rounded-lg cursor-pointer text-orange-600 border-orange-200 hover:bg-orange-50">
+                                          <PauseCircle className="w-3.5 h-3.5 mr-1" />Pausar
                                         </Button>
                                       )}
                                       <Button variant="outline" size="sm"
                                         onClick={() => handleOpenHandoff(service.id)}
-                                        className="flex-1 h-8 text-xs rounded-lg cursor-pointer text-blue-600 hover:bg-blue-50">
-                                        <ArrowRightLeft className="w-3 h-3 mr-1" />Pasar
+                                        className="flex-1 h-10 text-xs rounded-lg cursor-pointer text-blue-600 hover:bg-blue-50">
+                                        <ArrowRightLeft className="w-3.5 h-3.5 mr-1" />Pasar
                                       </Button>
                                       <Button variant="ghost" size="sm"
                                         onClick={() => { setDeleteServiceId(service.id); setDeleteReason("") }}
-                                        className="h-8 w-8 rounded-lg cursor-pointer text-red-400 hover:text-red-600 hover:bg-red-50 px-0">
-                                        <Trash2 className="w-3.5 h-3.5" />
+                                        className="h-10 w-10 rounded-lg cursor-pointer text-red-400 hover:text-red-600 hover:bg-red-50 px-0">
+                                        <Trash2 className="w-4 h-4" />
                                       </Button>
                                     </div>
                                   </>
@@ -830,6 +818,7 @@ export function MyAssignedVehiclesClient({
       {/* ── Dialog: Detalle de vehículo disponible (solo cuando no tiene servicio) ── */}
       <Dialog open={!!detailVehicle} onOpenChange={o => !o && setDetailVehicle(null)}>
         <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-sm rounded-2xl p-0 overflow-hidden">
+          <DialogTitle className="sr-only">Detalle del vehículo</DialogTitle>
           {detailVehicle && (
             <>
               <div className="px-5 pt-5 pb-4 bg-slate-50">

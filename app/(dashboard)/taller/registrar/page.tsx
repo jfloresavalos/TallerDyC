@@ -1,9 +1,9 @@
 import { getServerSession } from "next-auth"
 import { redirect } from "next/navigation"
 import { authOptions } from "@/lib/auth"
-import { getBranches } from "@/lib/actions/users"
+import { getBranchesCached } from "@/lib/actions/users"
 import { getBrandsForSelect } from "@/lib/actions/brands"
-import { getServiceTypes } from "@/lib/actions/service-types"
+import { getServiceTypesCached } from "@/lib/actions/service-types"
 import { VehicleRegistrationClient } from "@/components/taller/vehicle-registration"
 
 export default async function RegistrarPage() {
@@ -13,9 +13,9 @@ export default async function RegistrarPage() {
   }
 
   const [branches, brands, serviceTypes] = await Promise.all([
-    getBranches(),
+    getBranchesCached(),
     getBrandsForSelect(),
-    getServiceTypes(),
+    getServiceTypesCached(),
   ])
 
   return (

@@ -58,11 +58,12 @@ model Branch {
   address   String?
   phone     String?
   active    Boolean   @default(true)
-  users     User[]
-  vehicles  Vehicle[]
-  products  Product[]
-  sales     Sale[]
-  createdAt DateTime  @default(now())
+  users        User[]
+  vehicles     Vehicle[]
+  products     Product[]
+  sales        Sale[]
+  stockEntries StockEntry[]
+  createdAt    DateTime     @default(now())
 }
 
 model Vehicle {
@@ -200,6 +201,7 @@ model Product {
   updatedAt    DateTime      @updatedAt
   saleItems    SaleItem[]
   serviceItems ServiceItem[]
+  stockEntries StockEntry[]
 
   @@index([branchId])
   @@index([active])
@@ -208,18 +210,22 @@ model Product {
 
 // ---- VENTAS ----
 model Sale {
-  id          String     @id @default(cuid())
-  saleNumber  String     @unique
-  clientName  String?
-  clientDNI   String?
-  clientPhone String?
-  total       Float
-  branchId    String
-  branch      Branch     @relation(fields: [branchId], references: [id])
-  createdById String
-  createdBy   User       @relation(fields: [createdById], references: [id])
-  items       SaleItem[]
-  createdAt   DateTime   @default(now())
+  id              String     @id @default(cuid())
+  saleNumber      String     @unique
+  clientName      String?
+  clientDNI       String?
+  clientPhone     String?
+  total           Float
+  paymentMethod1  String     @default("efectivo")  // "efectivo" | "yape" | "tarjeta" | "transferencia"
+  paymentAmount1  Float?
+  paymentMethod2  String?
+  paymentAmount2  Float?
+  branchId        String
+  branch          Branch     @relation(fields: [branchId], references: [id])
+  createdById     String
+  createdBy       User       @relation(fields: [createdById], references: [id])
+  items           SaleItem[]
+  createdAt       DateTime   @default(now())
 
   @@index([branchId])
   @@index([clientDNI])
@@ -257,6 +263,23 @@ model ServiceItem {
   @@index([productId])
 }
 
+// ---- INGRESOS DE STOCK ----
+model StockEntry {
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id])
+  quantity  Float
+  costPrice Float?
+  note      String?
+  branchId  String?
+  branch    Branch?  @relation(fields: [branchId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@index([productId])
+  @@index([branchId])
+  @@index([createdAt])
+}
+
 // ---- TIPOS DE SERVICIO ----
 model ServiceType {
   id     String  @id @default(cuid())
@@ -280,6 +303,20 @@ model Company {
   logo      String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// ---- CLIENTES (contactos independientes) ----
+model ClientContact {
+  id        String   @id @default(cuid())
+  name      String
+  dni       String   @unique
+  phone     String?
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([dni])
+  @@index([name])
 }
 
 // ---- MARCAS Y MODELOS ----

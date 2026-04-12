@@ -2,7 +2,7 @@ import { getServerSession } from "next-auth"
 import { redirect } from "next/navigation"
 import { authOptions } from "@/lib/auth"
 import { getActiveVehicles } from "@/lib/actions/vehicles"
-import { getBranches, getUsers } from "@/lib/actions/users"
+import { getBranchesCached, getUsers } from "@/lib/actions/users"
 import { ServiceAssignmentClient } from "@/components/taller/service-assignment"
 
 export default async function AsignarPage() {
@@ -11,7 +11,7 @@ export default async function AsignarPage() {
 
   const [vehicles, branches, mechanics] = await Promise.all([
     getActiveVehicles(),
-    getBranches(),
+    getBranchesCached(),
     getUsers(),
   ])
 

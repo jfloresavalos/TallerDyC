@@ -28,7 +28,7 @@ async function main() {
     { username: "juan", name: "Juan García", password: "1234", role: UserRole.MECHANIC, branchId: sede1.id },
     { username: "carlos", name: "Carlos López", password: "1234", role: UserRole.MECHANIC, branchId: sede1.id },
     { username: "pedro", name: "Pedro Martínez", password: "1234", role: UserRole.MECHANIC, branchId: sede2.id },
-    { username: "luis", name: "Luis Rodríguez", password: "1234", role: UserRole.MECHANIC, branchId: sede2.id },
+    { username: "luis", name: "Luis Rodríguez", password: "1234", role: UserRole.MECHANIC, branchId: sede1.id },
   ]
 
   for (const user of users) {

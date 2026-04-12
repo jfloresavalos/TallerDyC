@@ -122,7 +122,7 @@ export default function SidebarMenu({ user }: SidebarMenuProps) {
                       <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 w-5 h-0.5 bg-blue-600 rounded-full" />
                     )}
                   </div>
-                  <span className={`text-[10px] font-medium leading-none ${active ? "text-blue-600" : "text-slate-400"}`}>
+                  <span className={`text-xs font-medium leading-none ${active ? "text-blue-600" : "text-slate-400"}`}>
                     {item.label}
                   </span>
                 </Link>
@@ -133,7 +133,7 @@ export default function SidebarMenu({ user }: SidebarMenuProps) {
               className="flex-1 flex flex-col items-center justify-center gap-1 pt-3 pb-2 text-slate-400 cursor-pointer min-h-[56px]"
             >
               <LogOut className="w-[22px] h-[22px]" />
-              <span className="text-[10px] font-medium leading-none">Salir</span>
+              <span className="text-xs font-medium leading-none">Salir</span>
             </button>
           </div>
         </nav>

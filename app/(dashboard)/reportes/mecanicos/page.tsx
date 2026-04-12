@@ -1,22 +1,22 @@
 import { getServerSession } from "next-auth"
 import { redirect } from "next/navigation"
 import { authOptions } from "@/lib/auth"
-import { getIncomeReport } from "@/lib/actions/vehicles"
+import { getMechanicProductivityReport } from "@/lib/actions/vehicles"
 import { getBranchesCached } from "@/lib/actions/users"
-import { ReportIncomeClient } from "@/components/taller/report-income"
+import { ReportMecanicosClient } from "@/components/taller/report-mecanicos"
 
-export default async function ReporteIngresosPage() {
+export default async function ReporteMecanicosPage() {
   const session = await getServerSession(authOptions)
   if (!session || session.user.role !== "ADMIN") redirect("/")
 
   const [report, branches] = await Promise.all([
-    getIncomeReport(),
+    getMechanicProductivityReport(),
     getBranchesCached(),
   ])
 
   return (
     <div className="p-4 md:p-6">
-      <ReportIncomeClient initialReport={report} branches={branches} />
+      <ReportMecanicosClient initialReport={report} branches={branches} />
     </div>
   )
 }

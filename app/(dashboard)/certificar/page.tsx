@@ -2,7 +2,7 @@ import { getServerSession } from "next-auth"
 import { redirect } from "next/navigation"
 import { authOptions } from "@/lib/auth"
 import { getCertificationQueue, getCertifiedServices } from "@/lib/actions/certifications"
-import { getBranches } from "@/lib/actions/users"
+import { getBranchesCached } from "@/lib/actions/users"
 import { CertificationQueueClient } from "@/components/taller/certification-queue"
 
 export default async function CertificarPage() {
@@ -14,7 +14,7 @@ export default async function CertificarPage() {
   const [queue, certified, branches] = await Promise.all([
     getCertificationQueue(branchId),
     getCertifiedServices(branchId),
-    getBranches(),
+    getBranchesCached(),
   ])
 
   return (
