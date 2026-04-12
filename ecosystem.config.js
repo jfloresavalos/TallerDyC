@@ -2,7 +2,7 @@ module.exports = {
   apps: [
     {
       name: 'tallerdyc',
-      script: 'node_modules/.bin/next',
+      script: 'node_modules/next/dist/bin/next',
       args: 'start',
       cwd: '/var/www/tallerdyc',
       instances: 1,

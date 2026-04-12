@@ -10,9 +10,11 @@ cd $APP_DIR
 
 if [ "$1" == "--setup" ]; then
   echo "--- Setup inicial ---"
-  npm install --legacy-peer-deps
-  npx prisma generate
-  npm run build
+  pnpm install
+  pnpm exec prisma generate
+  pnpm exec prisma db push
+  pnpm exec prisma db seed
+  pnpm build
   pm2 start ecosystem.config.js
   pm2 save
   echo "Setup completo."
@@ -23,16 +25,18 @@ echo "--- Pull ---"
 git pull origin main
 
 echo "--- Instalar dependencias ---"
-npm install --legacy-peer-deps
+pnpm install
 
 echo "--- Generar Prisma ---"
-npx prisma generate
+pnpm exec prisma generate
 
 echo "--- Build ---"
-npm run build
+pm2 stop $APP_NAME 2>/dev/null || true
+rm -rf .next
+pnpm build
 
 echo "--- Restart PM2 ---"
-pm2 restart $APP_NAME
+pm2 start $APP_NAME
 
 echo "=== Deploy completado ==="
 pm2 list

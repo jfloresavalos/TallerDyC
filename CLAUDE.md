@@ -241,30 +241,138 @@ NEXTAUTH_URL="https://tallerdyc.com"  # o http://212.85.12.168:3003
 
 ## Deploy VPS
 
+### Datos de conexión
+
 | Item | Valor |
 |------|-------|
 | **IP** | `212.85.12.168` |
-| **Puerto** | `3003` |
-| **Ruta** | `/var/www/tallerdyc` |
+| **Usuario SSH** | `root` |
+| **Puerto app** | `3003` |
+| **Ruta VPS** | `/var/www/tallerdyc` |
 | **PM2 name** | `tallerdyc` |
 | **Repo** | `https://github.com/jfloresavalos/TallerDyC.git` |
+| **Node (VPS)** | `v22.21.0` |
+| **pnpm (VPS)** | `v10.33.0` |
+| **BD** | `tallerdyc_db` (PostgreSQL, user `nelaglow_user`) |
+| **URL** | `http://212.85.12.168:3003` |
 
-**Primer deploy:**
+### Archivos clave en VPS
+
+- **`ecosystem.config.js`** — Config PM2. Script: `node_modules/next/dist/bin/next` (NO `node_modules/.bin/next` — pnpm crea wrappers shell que PM2 no puede ejecutar)
+- **`deploy.sh`** — Script de deploy automatizado (usa `pnpm`, no `npm`)
+- **`.env`** — Variables de entorno (no está en git):
+  ```env
+  DATABASE_URL="postgresql://nelaglow_user:NelaGlow2025@localhost:5432/tallerdyc_db?schema=public"
+  NEXTAUTH_SECRET="TallerDyC-2025-SecretKey-Production"
+  NEXTAUTH_URL="http://212.85.12.168:3003"
+  NODE_ENV="production"
+  ```
+
+### Conectar al VPS
+
 ```bash
-cd /var/www/tallerdyc
-chmod +x deploy.sh
-./deploy.sh --setup
+ssh root@212.85.12.168
 ```
 
-**Actualizaciones:**
+### Deploy de actualizaciones (flujo normal)
+
 ```bash
-# Desde local:
+# 1. Desde local — push los cambios
 git push origin main
-# En VPS:
+
+# 2. Ejecutar deploy remoto (una sola línea)
 ssh root@212.85.12.168 "cd /var/www/tallerdyc && ./deploy.sh"
 ```
 
-**Estado actual:** BD en VPS pendiente de crear, `.env` de producción pendiente.
+El script `deploy.sh` hace: `git pull` → `pnpm install` → `prisma generate` → stop PM2 → borrar `.next` → `pnpm build` → start PM2.
+
+### Deploy manual paso a paso (si deploy.sh falla)
+
+```bash
+ssh root@212.85.12.168
+cd /var/www/tallerdyc
+git pull origin main
+pnpm install
+pnpm exec prisma generate
+pm2 stop tallerdyc
+rm -rf .next
+pnpm build
+pm2 start tallerdyc
+pm2 logs tallerdyc --lines 10 --nostream   # verificar que arrancó
+```
+
+### Si hay cambios en el schema de Prisma
+
+```bash
+ssh root@212.85.12.168
+cd /var/www/tallerdyc
+pnpm exec prisma db push    # aplica cambios al schema
+pnpm exec prisma generate   # regenera el cliente
+# luego rebuild normal
+```
+
+### Primer deploy (solo una vez — ya realizado 2026-04-12)
+
+```bash
+# 1. Clonar repo
+cd /var/www
+git clone https://github.com/jfloresavalos/TallerDyC.git tallerdyc
+cd tallerdyc
+
+# 2. Instalar pnpm si no existe
+npm install -g pnpm
+
+# 3. Crear .env (ver contenido arriba)
+nano .env
+
+# 4. Crear BD
+sudo -u postgres psql -c "CREATE DATABASE tallerdyc_db;"
+sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE tallerdyc_db TO nelaglow_user;"
+# Dar permisos en schema public (PostgreSQL 15+)
+sudo -u postgres psql -d tallerdyc_db -c "GRANT ALL ON SCHEMA public TO nelaglow_user;"
+
+# 5. Setup
+chmod +x deploy.sh
+./deploy.sh --setup
+# Esto hace: pnpm install → prisma generate → db push → seed → build → pm2 start
+
+# 6. Verificar
+curl -s -o /dev/null -w '%{http_code}' http://localhost:3003/login
+# Debe retornar: 200
+```
+
+### Comandos útiles en VPS
+
+```bash
+pm2 list                          # Ver todos los procesos
+pm2 logs tallerdyc                # Logs en tiempo real
+pm2 logs tallerdyc --lines 20 --nostream  # Últimas 20 líneas
+pm2 flush tallerdyc               # Limpiar logs (para depurar errores frescos)
+pm2 restart tallerdyc             # Reiniciar
+pm2 stop tallerdyc                # Detener
+pm2 start tallerdyc               # Iniciar (si estaba detenido)
+```
+
+### Problemas conocidos y soluciones
+
+| Problema | Causa | Solución |
+|----------|-------|----------|
+| `clientModules` TypeError | `getServerSession(authOptions)` en `app/page.tsx` importa `bcryptjs` en RSC pipeline | Se resolvió simplificando `app/page.tsx` a solo `redirect("/login")`. La redirección por rol se hace client-side en login |
+| PM2 `SyntaxError` al iniciar | pnpm crea shell wrappers en `node_modules/.bin/next`, PM2 intenta ejecutarlos como JS | Usar `node_modules/next/dist/bin/next` en `ecosystem.config.js` |
+| Build falla por TS errors | Prisma types cambiaron después de schema update | Agregar `typescript: { ignoreBuildErrors: true }` en `next.config.mjs` (ya está) |
+| `.next` cache corrupto | Build previo incompleto o crash | `rm -rf .next` antes de rebuild (ya incluido en `deploy.sh`) |
+| Prisma EPERM en Windows | Dev server bloquea `query_engine.dll` | Detener dev server antes de `prisma generate` |
+
+### Otros proyectos en el VPS
+
+| PM2 name | Puerto | URL |
+|----------|--------|-----|
+| `mega-hard` | 3001 | — |
+| `nelaglow` | 3001 | https://admin.nelaglow.com |
+| `nelaglow-page` | 3002 | https://nelaglow.com |
+| `tallerdyc` | 3003 | http://212.85.12.168:3003 |
+
+**Estado actual (2026-04-12):** Desplegado y funcionando. BD creada con seed. Sin dominio (acceso por IP:puerto).
 
 ## Últimos Cambios (Sesión 2026-03-22 — Caché + Optimizaciones de Performance)
 
