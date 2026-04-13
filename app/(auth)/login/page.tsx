@@ -48,11 +48,8 @@ export default function LoginPage() {
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="mx-auto bg-gradient-to-br from-blue-500 to-blue-600 p-4 rounded-2xl shadow-2xl w-fit mb-4">
-            <Wrench className="w-10 h-10 text-white" />
-          </div>
-          <h1 className="text-2xl font-bold text-white">DyC Conversiones</h1>
-          <p className="text-slate-400 text-sm mt-1">Sistema de Gestión de Taller</p>
+          <img src="/logo.png" alt="DyC Conversiones" className="mx-auto w-48 object-contain mb-3" />
+          <p className="text-slate-400 text-sm">Sistema de Gestión de Taller</p>
         </div>
 
         {/* Formulario */}
