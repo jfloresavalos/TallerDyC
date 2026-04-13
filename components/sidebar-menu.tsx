@@ -1,13 +1,13 @@
 "use client"
 
-import { useState } from "react"
-import { usePathname } from "next/navigation"
+import { useState, useEffect } from "react"
+import { usePathname, useRouter } from "next/navigation"
 import { signOut } from "next-auth/react"
 import Link from "next/link"
 import {
   Menu, X, LayoutDashboard, FileText, Wrench, LogOut, Car,
   ClipboardList, Settings, Users2, ShoppingCart,
-  Package, ChevronRight, ShieldCheck
+  Package, ChevronRight, ShieldCheck, ArrowLeftRight
 } from "lucide-react"
 import type { UserRole } from "@prisma/client"
 
@@ -83,11 +83,33 @@ const mobileNavItems: Record<UserRole, { href: string; label: string; icon: type
 
 export default function SidebarMenu({ user }: SidebarMenuProps) {
   const [isOpen, setIsOpen] = useState(false)
+  const [mechanicMode, setMechanicMode] = useState(false)
   const pathname = usePathname()
-  const groups = menuConfig[user.role] || []
-  const isMobileRole = user.role === "MECHANIC" || user.role === "RECEPTIONIST" || user.role === "CERTIFIER"
-  const colors = roleColors[user.role]
-  const navItems = mobileNavItems[user.role] || []
+  const router = useRouter()
+
+  // Restaurar modo mecánico desde localStorage
+  useEffect(() => {
+    if (user.role === "ADMIN") {
+      const saved = localStorage.getItem("tallerdyc-mechanic-mode")
+      if (saved === "true") setMechanicMode(true)
+    }
+  }, [user.role])
+
+  const isAdminAsMechanic = user.role === "ADMIN" && mechanicMode
+  const effectiveRole: UserRole = isAdminAsMechanic ? "MECHANIC" : user.role
+
+  const groups = menuConfig[effectiveRole] || []
+  const isMobileRole = effectiveRole === "MECHANIC" || effectiveRole === "RECEPTIONIST" || effectiveRole === "CERTIFIER"
+  const colors = roleColors[effectiveRole]
+  const navItems = mobileNavItems[effectiveRole] || []
+
+  const toggleMechanicMode = () => {
+    const newMode = !mechanicMode
+    setMechanicMode(newMode)
+    localStorage.setItem("tallerdyc-mechanic-mode", String(newMode))
+    setIsOpen(false)
+    router.push(newMode ? "/mis-autos" : "/dashboard")
+  }
 
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(href + "/")
@@ -97,7 +119,7 @@ export default function SidebarMenu({ user }: SidebarMenuProps) {
   return (
     <>
       {/* ══════════════════════════════════════
-          MOBILE: Bottom Nav (MECHANIC / RECEPTIONIST / CERTIFIER)
+          MOBILE: Bottom Nav (MECHANIC / RECEPTIONIST / CERTIFIER / ADMIN en modo mecánico)
           ══════════════════════════════════════ */}
       {isMobileRole && (
         <nav
@@ -128,6 +150,15 @@ export default function SidebarMenu({ user }: SidebarMenuProps) {
                 </Link>
               )
             })}
+            {isAdminAsMechanic && (
+              <button
+                onClick={toggleMechanicMode}
+                className="flex-1 flex flex-col items-center justify-center gap-1 pt-3 pb-2 text-slate-400 cursor-pointer min-h-[56px]"
+              >
+                <ArrowLeftRight className="w-[22px] h-[22px]" />
+                <span className="text-xs font-medium leading-none">Admin</span>
+              </button>
+            )}
             <button
               onClick={() => signOut({ callbackUrl: "/login" })}
               className="flex-1 flex flex-col items-center justify-center gap-1 pt-3 pb-2 text-slate-400 cursor-pointer min-h-[56px]"
@@ -171,7 +202,7 @@ export default function SidebarMenu({ user }: SidebarMenuProps) {
 
           {/* Badge de rol */}
           <div className={`shrink-0 text-[10px] font-semibold px-2.5 py-1 rounded-full bg-gradient-to-r ${colors.gradient} text-white`}>
-            {roleLabel[user.role]}
+            {isAdminAsMechanic ? "Mecánico" : roleLabel[user.role]}
           </div>
         </div>
       </div>
@@ -251,7 +282,18 @@ export default function SidebarMenu({ user }: SidebarMenuProps) {
         </nav>
 
         {/* ── Footer ── */}
-        <div className="px-3 pb-5 pt-3 border-t border-slate-800">
+        <div className="px-3 pb-5 pt-3 border-t border-slate-800 space-y-1">
+          {user.role === "ADMIN" && (
+            <button
+              onClick={toggleMechanicMode}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-white transition-all duration-150 cursor-pointer min-h-[44px] group"
+            >
+              <ArrowLeftRight className="w-[18px] h-[18px] shrink-0 group-hover:text-blue-400 transition-colors" />
+              <span className="text-sm font-medium">
+                {mechanicMode ? "Volver a Admin" : "Modo Mecánico"}
+              </span>
+            </button>
+          )}
           <button
             onClick={() => signOut({ callbackUrl: "/login" })}
             className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-white transition-all duration-150 cursor-pointer min-h-[44px] group"

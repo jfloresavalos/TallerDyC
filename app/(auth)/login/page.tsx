@@ -32,6 +32,7 @@ export default function LoginPage() {
       return
     }
 
+    localStorage.removeItem("tallerdyc-mechanic-mode")
     const session = await getSession()
     const role = (session?.user as { role?: string })?.role
     if (role === "MECHANIC") router.push("/mis-autos")

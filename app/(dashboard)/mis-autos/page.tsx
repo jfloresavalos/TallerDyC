@@ -7,7 +7,7 @@ import { MyAssignedVehiclesClient } from "@/components/taller/my-assigned-vehicl
 
 export default async function MisAutosPage() {
   const session = await getServerSession(authOptions)
-  if (!session || session.user.role !== "MECHANIC") redirect("/")
+  if (!session || (session.user.role !== "MECHANIC" && session.user.role !== "ADMIN")) redirect("/")
 
   const [services, serviceTypes] = await Promise.all([
     getServicesByMechanic(session.user.id, "ACTIVE"),
